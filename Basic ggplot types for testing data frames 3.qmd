@@ -123,7 +123,8 @@ ggplot(data_long,
 ```
 
 
-```{r column-chart}
+```{r}
+#| label: column-chart
 
 
 # data <- read_csv(here("data", "test_survey_data_export.csv"))
