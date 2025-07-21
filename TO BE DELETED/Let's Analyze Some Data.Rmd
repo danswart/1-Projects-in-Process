@@ -1,0 +1,3194 @@
+---
+title: "Let's Analyze Some Data!"
+author: "Dan Swart"
+output: 
+  flexdashboard::flex_dashboard:
+    css: swart-20250327.css
+    orientation: columns
+    vertical_layout: fill
+    includes:
+      in_header: "header.html"
+runtime: shiny
+---
+
+
+```{css css-styling-download-buttons, echo=FALSE}
+/* Styling for download buttons */
+.btn-default {
+  background-color: #2E86C1;
+  color: white;
+  border-color: #1A5276;
+  margin-bottom: 10px;
+  transition: all 0.3s;
+}
+
+.btn-default:hover {
+  background-color: #1A5276;
+  color: white;
+}
+
+/* Add a floating download section to each chart */
+.download-section {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 5px;
+  border-radius: 5px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.2);
+}
+
+```
+
+
+```{css css-styling-plot-containers, echo=FALSE}
+
+/* Create a container with a padding-bottom of 40% (which gives the 10:4 ratio) */
+
+<!-- .chart-wrapper { -->
+<!--   display: flex; -->
+<!--   justify-content: center; -->
+<!--   align-items: center; -->
+<!--   width: 100%; -->
+<!--   height: 100%; -->
+<!-- } -->
+
+<!-- <!-- .aspect-ratio-container { --> -->
+<!-- <!--   width: 100%; --> -->
+<!-- <!--   height: 100%; --> -->
+<!-- <!--   position: relative; --> -->
+<!-- <!--   padding-bottom: 40%; /* This creates the 10:4 ratio (40% = 4/10 * 100%) */ --> -->
+<!-- <!--   margin-bottom: 50px; /* Add some space below */ --> -->
+<!-- <!-- } --> -->
+
+
+<!-- .aspect-ratio-container { -->
+<!--   width: 100%; -->
+<!--   height: 100%; -->
+<!--   position: absolute; -->
+<!--   top: 0; -->
+<!--   left: 0; -->
+<!--   padding-bottom: 40%; /* This creates the 10:4 ratio (40% = 4/10 * 100%) */ -->
+<!--   margin-bottom: 50px; /* Add some space below * -->
+<!-- } -->
+
+/*End container styling */
+
+```
+
+
+```{r global-chunk, include=FALSE}
+
+
+# Load Libraries
+library(tidyverse)
+library(qicharts2)
+library(haven)
+library(readxl)
+library(skimr)
+library(visdat)
+library(gghighlight)
+library(dplyr)
+library(stringr)
+library(ggtext)
+library(gganimate)
+library(ggplot2)
+library(purrr)
+library(scales)
+library(ggrepel)
+library(glue)             # concatenating strings
+library(plotly)
+library(htmlwidgets)
+library(readr)
+library(camcorder)
+library(RColorBrewer)
+library(rlang)
+library(cowplot)
+library(shiny)
+library(flexdashboard)
+library(DT)
+library(htmltools)
+library(shinyobjects)     # debugging shiny code
+library(prettycode)
+library(vroom)            # fast loading of data frames
+library(tidylog)          # reports changes in console
+library(janitor)
+library(lubridate)
+library(tsibble)          # working with time series data
+library(tidytext)         # text analysis for chr columns
+library(dlookr)           # diagnose and repair data frames; can compare distribs to normal
+library(flextable)
+library(patchwork)        # display multiple ggplot2 objects with various configs
+library(shinycssloaders)
+library(shinyjs)
+library(shinyBS)
+library(showtext)
+library(see)
+library(ggokabeito)
+library(here)
+
+
+# source_fonts <- fonts[grepl("Cabin", fonts$family, ignore.case = TRUE), ]
+# print(source_fonts[, c("family", "path")])
+
+
+# Add fonts directly to runtime: shiny environment
+font_add("Roboto", "/Users/D/Library/Fonts/Roboto-Regular.ttf")
+showtext_auto()
+
+font_add("Cabin", "/Users/D/Library/Fonts/SourceSans3-Regular.ttf")
+showtext_auto()
+
+
+# Reactive data storage
+data_reactive <- reactiveVal(NULL)   # stores and updates a dataset during the runtime of the app.  This object is updated by 'observeEvent(input$file_chosen, {' in the server section.
+
+column_choices <- reactiveVal(NULL)  # stores and updates column names for selection during the runtime of the app.  This object is updated by  'observeEvent(input$file_chosen, {' in the server section
+
+column_data <- reactiveVal(NULL)     # stores and updates row contents of selected column(s) during the runtime. of the app.  This object is updated by 'observeEvent(input$file_chosen, { '   in the server section.
+
+# Options
+options(scipen = 999)
+options(qic.clshade = T)                      # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(qic.linecol = 'black')                # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(qic.signalcol = "red")                # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(qic.targetcol = "darkgreen")          # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(DT.options = list(dom = 'pBlfrti'))   # Add buttons, filtering, and top (t) pagination controls
+options(shiny.maxRequestSize = 50 * 1024^2)   # Set upload maximum to 50 MB
+
+
+# # Helper function for maintaining aspect ratio
+# plotOutput_wrapper <- function(outputId, width = "100%", height = "100%") {
+#   htmltools::tags$div(
+#     class = "aspect-ratio-container",
+#     plotOutput(outputId, width = "100%", height = "100%")
+#   )
+# }
+
+
+```
+
+
+
+
+
+# Inputs {.sidebar data-width=350}
+
+
+```{r side-bar-inputs-no-server-needed}
+
+# UI Components: These include both the sidebar UI and the outputs in the Vizualization Section of the Server code
+
+#   Sidebar UI: Your inputs (defined with # Inputs {.sidebar})
+#   Server-side outputs UI: The visualization containers (e.g., # Run Chart)
+
+
+################  SIDEBAR DROPDOWNS THAT FEED SERVER FUNCTIONS BUT NEED NO SERVER CALCULATIONS  #####
+
+# File upload chooser button
+fileInput(inputId = "file_chosen",
+          label = "Choose a CSV File",
+          accept = c(".csv")) 
+
+# Check if file has a header
+checkboxInput(inputId = "header",
+              label = "Header",
+              value = TRUE)
+
+# Dropdown to choose the number of rows to display in Table
+selectInput(
+  inputId = "rows_per_page",
+  label = "Rows per Page:",
+  choices = c(10, 30, 50, 100, 200),
+  selected = 30   # default value
+  )
+
+# Dropdown to choose the type of file to create when exporting
+selectInput(
+  inputId = "export_format",
+  label = "Select Export Format:",
+  choices = c("SVG", "PNG"),
+  selected = "PNG" # Default value
+)
+
+# Choose type of data on Y axis
+selectInput(
+  inputId = "y_axis_type",
+  label = "Y-Axis Format Data Type:",
+  choices = c("Percentage" = "percent", 
+              "Rate" = "rate",
+              "Count" = "count", 
+              "Currency" = "currency",
+              "Other" = "other"),
+  selected = "percent"
+)
+
+
+selectInput(
+  inputId = "divide_by_100", 
+  label =   "Divide values by 100?", 
+  choices = c("Yes", "No"), 
+  selected = "No"
+  )
+
+selectInput(
+  inputId = "staar_grouping",
+  label = "Select Achievement Level for Titles:",
+  choices = c("Approaches or Above", "Meets or Above", "Masters", "N/A"),
+  selected = "Approaches or Above"
+)
+
+
+numericInput("cohort_start_grade", "Cohort Starting Grade:", 3, min = 3, max = 8)
+
+
+numericInput("cohort_start_year", "Cohort Starting Year:", 2018, min = 2015, max = 2023)
+
+
+####################  END OF SIDEBAR DROPDOWNS THAT FEED SERVER FUNCTIONS BUT NEED NO SERVER CALCULATIONS  #####
+
+
+
+####################  SIDEBAR DROPDOWNS THAT DEPEND ON SERVER SECTION TO CALCULATE  #####
+
+
+# Dynamic drop downs for selections appearing in sidebar, and require Server side calcs
+
+# Inputs to select value for grouping
+uiOutput("column_dropdown_choices") 
+
+# Slider for selecting year range
+uiOutput("years_chosen")
+
+# Dropdowns for X axis column selection
+uiOutput("x_column_selected")
+
+# Dropdowns for Y axis column selection
+uiOutput("y_column_selected")
+
+# Dropdown for Chart Title selection
+uiOutput("chart_title_selections")      
+
+# Dropdown for Chart Subtitle column selection
+uiOutput("chart_subtitle_selections")   
+
+# Dropdown for selecting variable(s) that may be grouped (for all charts that can display more than 1 variable)
+uiOutput("grouping_categories_selected")
+
+# Debug Info {data-height=200}
+verbatimTextOutput("debug_info")
+
+
+
+####################  END OF SIDEBAR CHOICES THAT DEPEND ON SERVER SECTION TO CALCULATE  #####
+
+
+####################  END OF SIDEBAR SECTION  #####
+
+
+```
+
+
+
+
+
+
+# Server Logic {.hidden}
+
+
+```{r server-logic}
+
+# Server Logic: This contains all your reactive expressions, render functions, etc.
+
+#   The section is hidden by marking with # Server Logic {.hidden}
+
+
+
+#######################   BEGIN SERVER SECTION  #####
+
+
+# Add this at the beginning of your server logic
+output$debug_info <- renderPrint({
+  cat("App initialized\n")
+  cat("File input exists:", !is.null(input$file_chosen), "\n")
+  
+  if (!is.null(input$file_chosen)) {
+    cat("File name:", input$file_chosen$name, "\n")
+    cat("File path:", input$file_chosen$datapath, "\n")
+    cat("File exists:", file.exists(input$file_chosen$datapath), "\n")
+  } else {
+    cat("No file uploaded yet\n")
+  }
+  
+  cat("\nData reactive status:\n")
+  cat("data_reactive exists:", exists("data_reactive"), "\n")
+  if (exists("data_reactive")) {
+    data <- tryCatch({
+      data_reactive()
+    }, error = function(e) {
+      cat("Error accessing data_reactive:", e$message, "\n")
+      NULL
+    })
+    cat("data_reactive returns data:", !is.null(data), "\n")
+    if (!is.null(data)) {
+      cat("Data dimensions:", nrow(data), "x", ncol(data), "\n")
+    }
+  }
+})
+
+
+
+#######################  'OBSERVE' FUNCTION UPDATES 3 GLOBAL REACTIVE OBJECTS  #####
+
+# File upload observer creates 4 global storage objects called 'data', 'data_reactive', 'column_choices' and 'column_data'
+
+observeEvent(input$file_chosen, {
+  cat("==== FILE UPLOAD EVENT TRIGGERED ====\n")
+  
+  if (is.null(input$file_chosen)) {
+    cat("No file selected\n")
+    return()
+  }
+  
+  cat("File name:", input$file_chosen$name, "\n")
+  cat("File path:", input$file_chosen$datapath, "\n")
+  cat("File exists:", file.exists(input$file_chosen$datapath), "\n")
+  
+  if (!file.exists(input$file_chosen$datapath)) {
+    cat("ERROR: File does not exist at the specified path\n")
+    return()
+  }
+  
+  # Try to read the first few lines to check format
+  cat("File preview:\n")
+  tryCatch({
+    preview <- readLines(input$file_chosen$datapath, n = 5)
+    cat(paste(preview, collapse = "\n"), "\n")
+  }, error = function(e) {
+    cat("Error reading file preview:", e$message, "\n")
+  })
+  
+  # Try to read the CSV file
+  data <- tryCatch({
+    cat("Attempting to read CSV...\n")
+    result <- read_csv(input$file_chosen$datapath, col_names = TRUE)
+    cat("Successfully read CSV with", nrow(result), "rows and", ncol(result), "columns\n")
+    result
+  }, error = function(e) {
+    cat("ERROR READING CSV:", e$message, "\n")
+    return(NULL)
+  })
+  
+  # Only proceed if data was loaded successfully
+  if (is.null(data)) {
+    cat("Failed to load data - stopping\n")
+    return()
+  }
+  
+  # Store the data
+  tryCatch({
+    cat("Storing data in reactives...\n")
+    data_reactive(data)
+    column_choices(names(data))
+    column_data(lapply(data, unique))
+    cat("Data processing complete\n")
+  }, error = function(e) {
+    cat("ERROR STORING DATA:", e$message, "\n")
+  })
+})
+
+
+
+
+
+
+
+
+
+# observeEvent(input$file_chosen, {
+#   req(input$file_chosen)
+# 
+#   print(paste("Loading file:", input$file_chosen$name))
+#   print(paste("File path:", input$file_chosen$datapath))
+#   
+#   # Check if file exists
+#   print(paste("File exists:", file.exists(input$file_chosen$datapath)))
+#   
+#   # Try to read the CSV file with error handling
+#   data <- tryCatch({
+#     result <- read_csv(input$file_chosen$datapath, col_names = TRUE)
+#     print(paste("Data loaded with", nrow(result), "rows and", ncol(result), "columns"))
+#     result
+#   }, error = function(e) {
+#     print(paste("Error reading file:", e$message))
+#     return(NULL)
+#   })
+#   
+#   # Only proceed if data was loaded
+#   if (!is.null(data)) {
+#     # Store data frame selected by user
+#     data_reactive(data)
+#     
+#     # Store column names
+#     column_choices(names(data))
+#     
+#     # Store unique values
+#     column_data(lapply(data, unique))
+#     
+#     print("Data processing complete")
+#   } else {
+#     print("Failed to load data")
+#   }
+# })
+
+
+
+
+
+
+# observeEvent(input$file_chosen, {
+#   req(input$file_chosen)
+# 
+#   print(paste("Loading file:", input$file_chosen$name))
+#   
+#   # Read the CSV file
+#   data <- read_csv(input$file_chosen$datapath, col_names = TRUE)
+#   
+#   
+#   # Store data frame selected by user
+#   data_reactive(data)
+#   
+#   # Store column names
+#   column_choices(names(data))
+#   
+#   # Store unique values
+#   column_data(lapply(data, unique))
+#   
+#   print("Data processing complete")
+# })
+# 
+# # Add this to your server section
+# observeEvent(input$file_chosen, {
+#   req(column_data())
+#   
+#   # Set up server-side processing for the "value" column
+#   if ("value" %in% column_choices()) {
+#     updateSelectizeInput(
+#       session,
+#       "select_value",
+#       choices = c("All", column_data()[["value"]]),
+#       server = TRUE
+#     )
+#   }
+# }, once = TRUE)
+
+
+##################  END OBSERVE FUNCTION UPDATES 4 GLOBAL REACTIVE OBJECTS  #####
+
+
+##################  renderUI FUNCTIONS TO UPDATE DROPDOWN CHOICES  #####
+
+# Generate dropdowns of column names for X axis selection
+output$x_column_selected <- renderUI({
+  req(column_choices())
+  selectInput(
+    inputId = "x_column",
+    label = "Select X-Axis Column:",
+    choices = column_choices(),  # these are row names of selected columns
+    selected = "year"       # column_choices()[1] # Default selection
+  )
+})
+
+
+# Generate dropdown of column names for Y axis selection
+output$y_column_selected <- renderUI({
+  req(column_choices())
+  selectInput(
+    inputId = "y_column",
+    label = "Select Y-Axis Column:",
+    choices = column_choices(),     # these are row names of selected columns
+    selected = "value"              # column_choices()[2] # Default selection
+  )
+})
+
+
+# Generate dropdown of column names for chart title selection
+output$chart_title_selections <- renderUI({
+  req(column_choices())
+  selectInput(
+    inputId = "chart_title",
+    label = "Select Categories to Include in Chart Title:",
+    choices = column_choices(),
+    selected = column_choices()[1],  # Default to first column
+    multiple = TRUE  # Allow selecting multiple columns
+  )
+})
+
+
+
+# Generate dropdown of column names for chart subtitle selection
+output$chart_subtitle_selections <- renderUI({
+  req(column_choices())
+  selectInput(
+    inputId = "chart_subtitle",
+    label = "Select Category to Include in Chart Subtitle:",
+    choices = column_choices(),      # these are row names of selected columns
+    selected = "year",               # column_choices()[2] # Default selection
+    multiple = FALSE
+  )
+})
+
+
+output$column_dropdown_choices <- renderUI({
+  req(column_choices())
+  
+  column_ui <- lapply(column_choices(), function(col_name) {
+    # Special handling for the "value" column
+    if(col_name == "value") {
+      selectizeInput(
+        inputId = paste0("select_", col_name),
+        label = paste("Select value for", col_name),
+        choices = c("All"),  # Start with just "All"
+        selected = "",
+        multiple = TRUE,
+        options = list(
+          placeholder = 'Type to search values...',
+          maxOptions = 10000,
+          maxItems = 10000,
+          loadThrottle = 200
+        )
+      )
+    } else {
+      # Normal handling for other columns
+      selectizeInput(
+        inputId = paste0("select_", col_name),
+        label = paste("Select value for", col_name),
+        choices = c("All", column_data()[[col_name]]),
+        selected = "",
+        multiple = TRUE
+      )
+    }
+  })
+  
+  do.call(tagList, column_ui)
+})
+
+
+# Multi-line chart dropdown (for multiple category selection)
+output$grouping_categories_selected <- renderUI({
+  req(column_choices())
+  selectizeInput(  # Using selectizeInput for better multiple selection
+    inputId = "multi_var_group",
+    label = "Select Categories for Multi-Variable Comparisons:",
+    choices = column_choices(),
+    selected = column_choices()[1],
+    multiple = TRUE,  # Allow multiple selections
+    options = list(plugins = list('remove_button'))
+  )
+})
+
+
+# Generate dynamic year slider, if a "Year" column exists in the chosen data frame
+output$years_chosen <- renderUI({
+  req(data_reactive())
+  
+  # Check if there is a column named "Year" or similar
+  year_col <- column_choices()[grepl("year", tolower(column_choices()))]
+  
+  # Retrieve min and max if 'year' column present for use in sliderInput
+  if (length(year_col) > 0) {
+    min_year <- min(data_reactive()[[year_col]], na.rm = TRUE)
+    max_year <- max(data_reactive()[[year_col]], na.rm = TRUE)
+    
+  # Create slider input values for range of years
+    sliderInput(
+      inputId = "year_range",
+      label = "Filter by Year Range:",
+      min = min_year,
+      max = max_year,
+      value = c(min_year, max_year),
+      step = 1,
+      sep = ""
+    )
+  }
+})
+
+
+#############  END renderUI FUNCTIONS UPDATE DROPDOWN CHOICES  #####
+
+
+
+#############  SERVER - reactive FUNCTIONS  #####
+
+### The value returned by the reactive() expression will automatically update whenever its dependencies (i.e., inputs or other reactive values) change. 
+
+#  'filtered_data' object collects the data resulting from User filtering choices. 
+
+#  'data' object begins with the UNFILTERED data from the database chosen by the user OUTSIDE of the filtering code.  It can be called upon later as an reactive object on its own.
+
+#  'data' is then filtered and becomes 'filtered_data'
+
+filtered_data <- reactive({
+  tryCatch({
+    # Check if data is available
+    req(data_reactive())
+    
+    # Start with the full data
+    data <- data_reactive()
+    
+    # Apply column filters if any are selected
+    for (col_name in column_choices()) {
+      input_name <- paste0("select_", col_name)
+      if (!is.null(input[[input_name]]) && length(input[[input_name]]) > 0) {
+        if (!("All" %in% input[[input_name]])) {
+          # Safely filter - check if column exists first
+          if (col_name %in% names(data)) {
+            data <- data[data[[col_name]] %in% input[[input_name]], , drop = FALSE]
+          }
+        }
+      }
+    }
+    
+    # Apply year range filter if a "Year" column exists
+    if (!is.null(input$year_range)) {
+      year_col <- column_choices()[grepl("year", tolower(column_choices()))]
+      if (length(year_col) > 0 && year_col %in% names(data)) {
+        year_filter <- data[[year_col]] >= input$year_range[1] & 
+                        data[[year_col]] <= input$year_range[2]
+        data <- data[year_filter, , drop = FALSE]
+      }
+    }
+    
+    # Return the filtered data, ensuring it's a data frame
+    return(as.data.frame(data))
+    
+  }, error = function(e) {
+    # This is inside the tryCatch
+    print(paste("Error in filtered_data:", e$message))
+    return(data.frame())  # Return empty data frame on error
+  })
+})
+
+
+
+# Needed for cohort plot
+cohort_data <- reactive({
+  # Require the basic inputs
+  req(filtered_data(), input$cohort_start_year, input$cohort_start_grade, input$year_range)
+  
+  # Print debugging info
+  print("Cohort data function running")
+  print(paste("Start year:", input$cohort_start_year))
+  print(paste("Start grade:", input$cohort_start_grade))
+  
+  start_year <- as.numeric(input$cohort_start_year)
+  start_grade <- as.numeric(input$cohort_start_grade)
+  
+  # Get base data
+  all_data <- filtered_data()
+  print(paste("Filtered data rows:", nrow(all_data)))
+  
+  # If no data, return empty frame
+  if(nrow(all_data) == 0) {
+    return(data.frame())
+  }
+  
+  # Use the existing year range to determine how many years to track
+  available_years <- seq(from = input$year_range[1], to = input$year_range[2])
+  print(paste("Available years:", paste(available_years, collapse=", ")))
+  
+  # Calculate which years we can actually track based on start year and available range
+  usable_years <- available_years[available_years >= start_year]
+  print(paste("Usable years:", paste(usable_years, collapse=", ")))
+  
+  # Make sure we don't go beyond available data
+  if(length(usable_years) == 0) {
+    print("No usable years found")
+    return(data.frame()) # Return empty data frame if no valid years
+  }
+  
+  # Calculate corresponding grades (1 grade level per year)
+  years_to_track <- length(usable_years)
+  grades <- seq(from = start_grade, by = 1, length.out = years_to_track)
+  print(paste("Tracking grades:", paste(grades, collapse=", ")))
+  
+  # Verify we have grade_level_code in our data
+  if(!"grade_level_code" %in% names(all_data)) {
+    print("Warning: grade_level_code column not found, looking for grade_level_name")
+    # Try to use grade_level_name if available
+    if("grade_level_name" %in% names(all_data)) {
+      # Extract numbers from grade level names (e.g., "Grade 3" → 3)
+      all_data$grade_level_code <- as.numeric(gsub("\\D", "", all_data$grade_level_name))
+    } else {
+      print("Error: Neither grade_level_code nor grade_level_name found")
+      return(data.frame())
+    }
+  }
+  
+  # This is important: we need to make sure we're only including the right grade for each year
+  final_result <- data.frame()
+  for (i in 1:length(usable_years)) {
+    current_year <- usable_years[i]
+    current_grade <- grades[i]
+    
+    print(paste("Looking for year", current_year, "and grade", current_grade))
+    
+    year_data <- all_data %>%
+      filter(year == current_year, grade_level_code == current_grade)
+    
+    print(paste("Found", nrow(year_data), "rows"))
+    
+    if(nrow(year_data) > 0) {
+      final_result <- rbind(final_result, year_data)
+    }
+  }
+  
+  print(paste("Final result has", nrow(final_result), "rows"))
+  
+  # If we have no data, return empty frame
+  if(nrow(final_result) == 0) {
+    print("No matching data found for cohort")
+    return(data.frame())
+  }
+  
+  # Add a progression label for the x-axis
+  final_result$progression <- paste0("Year ", final_result$year, " (Grade ", final_result$grade_level_code, ")")
+  
+  # Sort by year to ensure correct order in chart
+  final_result <- final_result %>% arrange(year)
+  
+  return(final_result)
+})
+
+
+#############  END OF reactive FUNCTIONS  #####
+
+
+
+
+#############  'OBSERVE' FUNCTION TO ANTICIPATE Y-AXIS DATA TYPE  #####
+
+# Replace your existing observe function with this one
+observe({
+  req(filtered_data(), input$y_column)
+  
+  tryCatch({
+    # Check if filtered_data is empty
+    if (nrow(filtered_data()) == 0) {
+      print("Filtered data is empty, cannot determine y-axis type")
+      return()
+    }
+    
+    # Check if column exists
+    if (!input$y_column %in% names(filtered_data())) {
+      print(paste("Column", input$y_column, "not found in filtered data"))
+      return()
+    }
+    
+    # Try to get the data
+    y_data <- filtered_data()[[input$y_column]]
+    
+    # Check if data is numeric
+    if (!is.numeric(y_data)) {
+      print(paste("Column", input$y_column, "is not numeric"))
+      updateSelectInput(session, "y_axis_type", selected = "other")
+      return()
+    }
+    
+    # Now safely proceed with numeric checks
+    if (all(y_data >= 0 & y_data <= 1, na.rm = TRUE)) {
+      updateSelectInput(session, "y_axis_type", selected = "percent")
+    } else if (all(abs(y_data - round(y_data)) < 0.001, na.rm = TRUE)) {
+      updateSelectInput(session, "y_axis_type", selected = "count")
+    } else {
+      updateSelectInput(session, "y_axis_type", selected = "other")
+    }
+    
+  }, error = function(e) {
+    print(paste("Error in y-axis detection:", e$message))
+    # Default to other if there's an error
+    updateSelectInput(session, "y_axis_type", selected = "other")
+  })
+})
+
+
+
+##########  END 'OBSERVE' FUNCTION TO ANTICIPATE Y-AXIS DATA TYPE  #####
+
+
+
+
+
+#########  BEGIN DATA TABLE LOGIC  #####
+
+
+output$data_frame_chosen <- renderDT({
+  # Add debugging
+  print("Attempting to render data table")
+
+  # Check if filtered_data exists
+  if (is.null(filtered_data())) {
+    print("filtered_data is NULL")
+    return(datatable(data.frame(Message = "No data available")))
+  }
+
+  # Check data type and structure
+  print(paste("Class of filtered_data:", class(filtered_data())))
+  print(paste("Dimensions:", paste(dim(filtered_data()), collapse = "x")))
+
+  # Make sure it's a data frame
+  if (!is.data.frame(filtered_data())) {
+    print("Converting to data frame")
+    data_to_show <- as.data.frame(filtered_data())
+  } else {
+    data_to_show <- filtered_data()
+  }
+
+  # Try to render the table
+  tryCatch({
+    datatable(
+      data_to_show,
+      style = 'bootstrap',
+      editable = 'cell',
+      filter = 'top',
+      caption = htmltools::tags$caption(
+        style = 'caption-side: top;
+                text-align: center;
+                padding-bottom: 10px;
+                font-family: "Cabin", Arial, sans-serif;
+                font-weight: 900;
+                font-size: 56;',
+                'Table 2: ',
+                htmltools::em('This is your data sorted and filtered per your inputs.')
+      ),
+      rownames = FALSE,
+      extensions = "Buttons",
+      options = list(
+        striped = TRUE,
+        spacing = "l",
+        align = "lccccccr",
+        digits = 1,
+        width = "90%",
+        pageLength = as.numeric(input$rows_per_page),
+        paging = TRUE,
+        ordering = TRUE,
+        autoWidth = TRUE,
+        scrollX = TRUE,
+        scrollY = "400px",
+        scrollCollapse = FALSE,
+        buttons = c("copy", "csv", "excel", "pdf", "print"),
+        responsive = TRUE
+      ),
+      class = "display compact stripe hover"
+    )
+  }, error = function(e) {
+    print(paste("Error in datatable:", e$message))
+    return(datatable(data.frame(Error = e$message)))
+  })
+})
+
+
+#####################  END DATA TABLE LOGIC  #####
+
+
+
+
+#####################  BEGIN RUN CHART LOGIC  #####
+
+
+output$run_chart_plot <- renderPlot({
+  req(filtered_data(), input$x_column, input$y_column, input$chart_title, input$year_range)
+
+  print("Chart rendering started")
+  
+  # Extract x_data and y_data from filtered_data()
+  data <- filtered_data()
+  x_data <- data[[input$x_column]]
+  y_data <- data[[input$y_column]]
+
+  # Qualify the data
+  req(!is.null(x_data), !is.null(y_data), length(x_data) > 0, length(y_data) > 0)
+
+  # Calculate centerline (median)
+  centerline <- median(y_data, na.rm = TRUE)
+
+ 
+  
+###############  BEGIN RUN CHART TITLES  #####
+  
+# Create a title_elements storage object to be filled by selection process below
+title_elements <- c()     # placeholder
+
+# Process each selected column
+for(col_name in input$chart_title) {
+  if(col_name %in% names(data)) {
+    # If there's just one unique value in this column, use it
+    if(length(unique(data[[col_name]])) == 1) {
+      title_elements <- c(title_elements, as.character(unique(data[[col_name]])))
+    }
+    # If there are a few unique values (under 5), include them all
+    else if(length(unique(data[[col_name]])) <= 5) {
+      values <- paste(unique(data[[col_name]]), collapse=", ")
+      title_elements <- c(title_elements, values)
+    }
+    # If there are many values, just indicate the count
+    else {
+      n_values <- length(unique(data[[col_name]]))
+      title_elements <- c(title_elements, paste0(n_values, " Values"))
+    }
+  }
+}
+
+
+# Combine all elements with hyphens
+title_content <- if (length(title_elements) > 0) {
+  paste(title_elements, collapse = " - ")
+} else {
+  "Selected Data"  # Default if no columns selected
+}
+
+# Create the final title
+title <- paste0(
+  "<span style='color:darkorchid1'>",
+  "Run Chart: ", 
+  title_content,
+  "</span>"
+)
+
+# Modify this subtitle section in your line chart code
+req(input$year_range, input$staar_grouping)  # Make sure these inputs exist
+
+subtitle <- paste0(
+  "For Students Reaching <i>'",
+  input$staar_grouping,
+  "'</i><br>for Years ",  # Use HTML tags <i> for italics and <br> for line break
+  input$year_range[1],
+  " - ",
+  input$year_range[2]
+)
+
+# # Now create the subtitle with staar_grouping
+# # First make sure input$year_range and input$staar_grouping exist
+# req(input$year_range, input$staar_grouping)
+# 
+# # Create the subtitle
+# subtitle <- paste0(
+#   "For Students Reaching ",
+#   input$staar_grouping,
+#   " for the Years ",
+#   input$year_range[1],
+#   " - ", 
+#   input$year_range[2]
+# )
+
+# # create object named chart_subtitle
+#   chart_subtitle <- input$year_range
+# 
+#   subtitle <- paste0("For the Years Ended ",
+#                      chart_subtitle[1],
+#                      " - ",
+#                      chart_subtitle[2]
+#   )
+
+  
+###############  END RUN CHART TITLES  #####
+  
+  
+# Create the run chart
+  rc <- ggplot(data,
+               aes(x = .data[[input$x_column]],
+                   y = .data[[input$y_column]]
+                   )
+               ) +
+    
+    # Add lines connecting the points
+    geom_line(color = "grey",
+              linewidth = 2.00) +
+    
+    # Add points
+    geom_point(size = 6,
+               color = "blue"
+               ) +
+    
+    # Add the centerline (median)
+    geom_hline(yintercept = centerline, 
+               linetype = "dashed",
+               color = "black",
+               linewidth = 1
+               ) +
+    
+    # Add an annotation for the centerline
+    annotate(
+      "text",
+      x = max(x_data, na.rm = TRUE),   # Place the annotation at far right edge
+      y = max(y_data, na.rm = TRUE),   # Place the annotation at top
+      label = "(centerline is the median)",
+      color = "red",
+      size = 4,
+      hjust = -.5,      # pos number = Align slightly BELOW the line
+      vjust = -1        # neg number = Align slightly ABOVE the line
+    ) +
+
+    labs(
+      title = title,
+      subtitle = subtitle,
+      caption = "Data Source:  The Texas Education Association",
+      x = element_blank(), 
+      y = element_blank()
+      # x = "Academic Year-Ended",
+      # y = "Values"
+    )
+
+  # Adjust Y axis  scales and labels based on data type
+  if (input$y_axis_type == "percent") {
+    rc <- rc + scale_y_continuous(
+      labels = scales::percent_format(accuracy = 1),
+      name = "Percentage (%)"
+    )
+  } else if (input$y_axis_type == "rate") {
+    rc <- rc + scale_y_continuous(
+      labels = scales::percent_format(accuracy = 1),
+      name = "Percentage (%)"
+    )
+  } else if (input$y_axis_type == "count") {
+    rc <- rc + scale_y_continuous(
+      labels = scales::comma_format(),
+      name = "Count"
+    )
+  } else if (input$y_axis_type == "currency") {
+    rc <- rc + scale_y_continuous(
+      labels = scales::dollar_format(),
+      name = "Amount ($)"
+    )
+  } else {
+    # Default - plain number format with appropriate decimal places
+    rc <- rc + scale_y_continuous(
+      labels = scales::number_format(accuracy = 0.01),
+      name = "Value"
+    )
+  }
+  
+  # Set X axis  scales and labels 
+rc <- rc + 
+    scale_x_continuous(
+      breaks = unique(data[[input$x_column]]),            # Show all unique years
+      labels = function(x) format(x, scientific = FALSE)  # Format as regular numbers
+    )
+  
+  
+  # Continue adding theme elements
+  rc <- rc + 
+    # Set theme
+    theme_minimal(
+      base_size = 26,
+      base_family = 'Cabin'
+      ) +
+    
+    # Add grid lines 
+    theme(
+      aspect.ratio = 2/5,  # This will create a 5:2 aspect ratio (width:height).
+
+      panel.grid.major = element_line(color = "gray",
+                                      linewidth = 0.5
+                                      ),
+      panel.grid.minor = element_blank()
+      ) +
+    # remove legend
+    theme(legend.position = "none",
+          aspect.ratio = 2/5) +         # This will create a 5:2 aspect ratio (width:height)
+    theme(
+      plot.title.position = "panel",
+      text = element_text(color = "royalblue"),
+      plot.title = ggtext::element_markdown(
+         color = "darkgreen",
+         size = rel(1.25),
+         face = "bold",
+         lineheight = 1.1,
+         margin = margin(0, 0, 0, 0, "pt")
+         ),
+
+      plot.subtitle = ggtext::element_markdown(
+         color = "darkgreen",
+         size = rel(1.10),
+         face = "bold",
+         lineheight = 0.9,
+         margin = margin(5, 0, 0, 0, "pt")
+         ),
+
+      plot.caption = element_text(color = "darkgreen",
+                                  size = rel(1.0),
+                                  face = "bold",
+                                  lineheight = 1.0,
+                                  margin = margin(5, 0, 0, 0, "pt")
+                                  ),
+
+      strip.text = element_text(color = "orange",
+                                size = rel(1.1),
+                                face = "bold",
+                                margin = margin(5, 0, 0, 0, "pt")
+                                ),
+
+      # X-axis tick label styling
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1,
+        face = "bold", 
+        size = rel(1.1)
+      ),
+      
+      # X-axis title styling
+      axis.title.x = element_text(
+       face = "bold", 
+       size = rel(1.3),
+       color = "royalblue",  # Optional: specify color
+       margin = margin(t = 10)
+      ),
+      
+      # y-axis tick label styling
+      axis.text.y = element_text(
+        hjust = 1,
+        face = "bold", 
+        size = rel(1.1)
+      ),
+      
+       # y-axis title styling
+       axis.title.y = element_text(
+        face = "bold", 
+        size = rel(1.1),
+        color = "royalblue",  # Optional: specify color
+        margin = margin(t = 10, r = 10)
+       ),
+      
+      panel.background = element_rect(fill = "white", color = NA),
+      
+      plot.background = element_rect(fill = "white", color = NA)
+  )
+
+    
+ 
+  # Save the plot to reactive values
+  plot_store$run_chart <- rc
+
+  
+  # Return the ggplot object directly
+  return(rc)
+  
+  
+})   
+
+
+###############  END RUN CHART LOGIC  #####
+
+
+
+
+
+###############  BEGIN LINE CHART (CAN HANDLE MULTIPLE LINES)  #####
+
+ # Add this debugging above your renderPlot
+output$debug_info <- renderPrint({
+  cat("Columns in filtered data:", paste(names(filtered_data()), collapse=", "), "\n")
+  cat("Number of rows:", nrow(filtered_data()), "\n")
+  cat("Is y-column present?", input$y_column %in% names(filtered_data()), "\n")
+  cat("Sample of data:\n")
+  print(head(filtered_data()))
+})
+  
+
+
+output$line_chart <- renderPlot({
+  print("Attempting to render line chart")
+  
+  # Check required inputs
+  req(filtered_data(), input$x_column, input$y_column, input$chart_title, input$year_range, input$multi_var_group)
+  
+  print(paste("X column:", input$x_column))
+  print(paste("Y column:", input$y_column))
+  
+  # Check if we have at least one grouping variable
+  req(length(input$multi_var_group) > 0)
+  print(paste("Grouping variables:", paste(input$multi_var_group, collapse=", ")))
+
+  # Extract data from filtered_data()
+  data <- filtered_data()
+  
+  print(paste("Filtered data dimensions:", nrow(data), "x", ncol(data)))
+  
+  # Check for empty data
+  if(nrow(data) == 0) {
+    print("Filtered data is empty, cannot render chart")
+    return(ggplot() + 
+           annotate("text", x = 0.5, y = 0.5, label = "No data available to plot") +
+           theme_void())
+  }
+  
+  # Check if columns exist
+  if(!input$x_column %in% names(data)) {
+    print(paste("X column", input$x_column, "not found in data"))
+    return(ggplot() + 
+           annotate("text", x = 0.5, y = 0.5, label = paste("Column", input$x_column, "not found in data")) +
+           theme_void())
+  }
+  
+  if(!input$y_column %in% names(data)) {
+    print(paste("Y column", input$y_column, "not found in data"))
+    return(ggplot() + 
+           annotate("text", x = 0.5, y = 0.5, label = paste("Column", input$y_column, "not found in data")) +
+           theme_void())
+  }
+  
+  # Check column types
+  print(paste("X column type:", class(data[[input$x_column]])[1]))
+  print(paste("Y column type:", class(data[[input$y_column]])[1]))
+  
+  
+  # Safely create the combined group column
+  if(length(input$multi_var_group) == 1) {
+    # If only one column is selected, use it directly
+    data$combined_group <- as.character(data[[input$multi_var_group]])
+    print("Using single grouping variable")
+  } else {
+    # For multiple columns, create a combined string
+    # First, check all columns exist
+    all_cols_exist <- all(input$multi_var_group %in% names(data))
+    if(!all_cols_exist) {
+      print("Some selected group columns don't exist in the data")
+      return(ggplot() + 
+               annotate("text", x = 0.5, y = 0.5, 
+                        label = "Error: Some selected group columns don't exist in the data") + 
+               theme_void())
+    }
+    
+    # Now combine the columns safely
+    data$combined_group <- apply(data[, input$multi_var_group, drop = FALSE], 1, 
+                              function(row) paste(row, collapse = " | "))
+    print("Using multiple grouping variables")
+  }
+  
+  print("Unique groups found:")
+  print(unique(data$combined_group))
+  
+  # Create group title for subtitle
+  groups_title <- paste(input$multi_var_group, collapse = ", ")
+  
+  # Create title elements
+  title_elements <- c()
+  for(col_name in input$chart_title) {
+    if(col_name %in% names(data)) {
+      if(length(unique(data[[col_name]])) == 1) {
+        title_elements <- c(title_elements, as.character(unique(data[[col_name]])))
+      } else if(length(unique(data[[col_name]])) <= 5) {
+        values <- paste(unique(data[[col_name]]), collapse=", ")
+        title_elements <- c(title_elements, values)
+      } else {
+        n_values <- length(unique(data[[col_name]]))
+        title_elements <- c(title_elements, paste0(n_values, " Values"))
+      }
+    }
+  }
+
+  # Combine title elements
+  title_content <- if (length(title_elements) > 0) {
+    paste(title_elements, collapse = " - ")
+  } else {
+    "Selected Data"
+  }
+
+  # Create final title and subtitle
+  title <- paste0(
+    "<span style='color:darkorchid1'>",
+    "Line Chart: ", 
+    title_content,
+    "</span>"
+  )
+
+ # Modify this subtitle section in your line chart code
+req(input$year_range, input$staar_grouping)  # Make sure these inputs exist
+
+subtitle <- paste0(
+  "For Students Reaching <i>'",
+  input$staar_grouping,
+  "'</i><br>for Years ",  # Use HTML tags <i> for italics and <br> for line break
+  input$year_range[1],
+  " - ",
+  input$year_range[2]
+)
+
+  
+  print("Creating ggplot...")
+  
+  
+# Create the base plot with common aesthetics
+alc <- ggplot(data,
+             aes(x = .data[[input$x_column]],
+                 y = .data[[input$y_column]],
+                 color = combined_group,
+                 group = combined_group
+                 )
+             ) +
+  
+  # Add lines connecting the points
+  geom_line(linewidth = 1.2, na.rm = TRUE) +
+  
+  # Add labels at the end of each line
+  geom_text(
+    # Use dplyr to get the last point for each group
+    data = data %>% 
+      group_by(combined_group) %>% 
+      arrange(.data[[input$x_column]]) %>% 
+      slice_tail(n = 1) %>%
+      ungroup(),
+    aes(label = combined_group),
+    hjust = 0,
+    vjust = 0,
+    family = 'Cabin',
+    fontface = 'bold',
+    size = 12,
+    nudge_x = 0.1
+  ) +
+  
+    # Add points
+      geom_point(size = 4) +
+    
+    # If we have many categories, use a different color scale
+    {if(length(unique(data$combined_group)) <= 9) {
+        scale_color_brewer(palette = "Set1")
+      } else {
+        scale_color_viridis_d()
+      }} +
+    
+    labs(
+      title = title,
+      subtitle = subtitle,
+      caption = "\n Source: Texas Education Agency",
+      x = element_blank(), 
+      y = element_blank(),
+      color = NULL
+    )
+
+  # Adjust Y axis scales and labels based on data type
+  if (input$y_axis_type == "percent") {
+    alc <- alc + scale_y_continuous(
+      labels = scales::percent_format(accuracy = 1)
+    )
+  } else if (input$y_axis_type == "count") {
+    alc <- alc + scale_y_continuous(
+      labels = scales::comma_format()
+    )
+  } else if (input$y_axis_type == "currency") {
+    alc <- alc + scale_y_continuous(
+      labels = scales::dollar_format()
+    )
+  } else {
+    alc <- alc + scale_y_continuous(
+      labels = scales::number_format(accuracy = 0.01)
+    )
+  }
+  
+
+# Find the max x value
+x_max <- max(data[[input$x_column]], na.rm = TRUE)
+
+
+# Add this to your ggplot chain
+alc <- alc +
+  scale_x_continuous(
+    breaks = unique(data[[input$x_column]]),
+    labels = function(x) format(x, scientific = FALSE),
+    limits = c(NA, x_max + 1)  # Keep the lower limit as is, extend upper limit
+  )
+ 
+    print("Using continuous scale for numeric x-axis")
+ 
+  
+  # Apply the same theme as before
+  alc <- alc + 
+    theme_minimal(
+      base_size = 26,
+      base_family = 'Cabin'
+      ) +
+    
+    theme(
+      aspect.ratio = 2/5,
+      panel.grid.major = element_line(color = "gray", linewidth = 0.5),
+      panel.grid.minor = element_blank(),
+      plot.title.position = "panel",
+      text = element_text(color = "royalblue"),
+      plot.title = ggtext::element_markdown(
+         color = "darkgreen",
+         size = rel(1.25),
+         face = "bold",
+         lineheight = 1.1,
+         margin = margin(0, 0, 0, 0, "pt")
+      ),
+      plot.subtitle = ggtext::element_markdown(
+         color = "darkgreen",
+         size = rel(1.10),
+         face = "bold",
+         lineheight = 0.90,
+         margin = margin(5, 0, 0, 0, "pt")
+      ),
+      plot.caption = element_text(
+        color = "darkgreen",
+        size = rel(1.0),
+        face = "bold",
+        lineheight = 1.0,
+        margin = margin(5, 0, 0, 0, "pt")
+      ),
+      strip.text = element_text(
+        color = "orange",
+        size = rel(1.1),
+        face = "bold",
+        margin = margin(5, 0, 0, 0, "pt")
+      ),
+      axis.text.x = element_text(
+        angle = 45,
+        hjust = 1,
+        face = "bold", 
+        size = rel(1.1)
+      ),
+      axis.title.x = element_text(
+       face = "bold", 
+       size = rel(1.3),
+       color = "royalblue",
+       margin = margin(t = 10)
+      ),
+      axis.text.y = element_text(
+        hjust = 1,
+        face = "bold", 
+        size = rel(1.1)
+      ),
+      axis.title.y = element_text(
+        face = "bold", 
+        size = rel(1.1),
+        color = "royalblue",
+        margin = margin(t = 10, r = 10)
+      ),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = rel(0.9)),
+      legend.key.size = unit(0.8, "cm"),
+      {if(length(unique(data$combined_group)) > 10) {
+         legend.key.height = unit(0.8, "cm")
+       }},
+      panel.background = element_rect(fill = "white", color = NA),
+      plot.background = element_rect(fill = "white", color = NA)
+    )
+  
+  print("ggplot created successfully")
+  
+  # Save the plot to reactive values
+  plot_store$line_chart <- alc
+  
+
+  
+  # Return the ggplot object
+  return(alc)
+})
+
+
+
+####################  END OF LINE CHART  #####
+  
+
+
+
+
+
+####################  BEGIN BAR CHART LOGIC  #####
+
+
+output$bar_chart <- renderPlot({
+  req(filtered_data(), input$x_column, input$y_column, input$chart_title, 
+      input$year_range, input$multi_var_group, input$y_axis_type, input$divide_by_100)
+  
+  # Make sure we have at least one grouping variable selected
+  req(length(input$multi_var_group) > 0)
+  # Extract data from filtered_data()
+  data <- filtered_data()
+  
+  # Safely create the combined group column
+  if(length(input$multi_var_group) == 1) {
+    # If only one column is selected, use it directly
+    data$combined_group <- as.character(data[[input$multi_var_group]])
+  } else {
+    # For multiple columns, create a combined string
+    # First, check all columns exist
+    all_cols_exist <- all(input$multi_var_group %in% names(data))
+    if(!all_cols_exist) {
+      return(ggplot() + 
+               annotate("text", 
+                        x = 0.5, 
+                        y = 0.5, 
+                        label = "Error: Some selected group columns don't exist in the data") + 
+               theme_void())
+    }
+    
+    # Now combine the columns safely
+    data$combined_group <- apply(data[, input$multi_var_group, drop = FALSE], 1, 
+                              function(row) paste(row, collapse = " | "))
+  }
+  
+  # Create a title showing what we're comparing
+  groups_title <- paste(input$multi_var_group, collapse = ", ")
+  
+  # Create a combined title from user-selected columns
+  title_elements <- c()
+  for(col_name in input$chart_title) {
+    if(col_name %in% names(data)) {
+      if(length(unique(data[[col_name]])) == 1) {
+        title_elements <- c(title_elements, as.character(unique(data[[col_name]])))
+      } else if(length(unique(data[[col_name]])) <= 5) {
+        values <- paste(unique(data[[col_name]]), collapse=", ")
+        title_elements <- c(title_elements, values)
+      } else {
+        n_values <- length(unique(data[[col_name]]))
+        title_elements <- c(title_elements, paste0(n_values, " Values"))
+      }
+    }
+  }
+  
+  # Set the plot title based on collected title elements
+  plot_title <- "Bar Plot"
+  if(length(title_elements) > 0) {
+    plot_title <- paste(title_elements, collapse = " - ")
+  }
+  
+  # Process data according to divide_by_100 input
+  if(input$divide_by_100 == "Yes") {
+    # Divide values by 100 (e.g., convert 75 to 0.75)
+    data[[input$y_column]] <- data[[input$y_column]] / 100
+  }
+  
+  # Prepare y-axis label
+  y_axis_label <- input$y_column
+  if(input$y_axis_type == "Percentage") {
+    data[[input$y_column]] <- data[[input$y_column]] * 100
+    y_axis_label <- "Percentage (%)"
+  } else if(input$y_axis_type == "Count") {
+    y_axis_label <- "Count"
+  } else if(input$y_axis_type == "Currency") {
+    y_axis_label <- "Amount ($)"
+  }
+  
+  # Ensure x-axis column is treated as a factor to show all values
+  data[[input$x_column]] <- as.factor(data[[input$x_column]])
+  
+  
+  # Create the base plot
+  
+  p <- ggplot(data,
+              aes(
+                x = .data[[input$x_column]],
+                y = .data[[input$y_column]], 
+                fill = .data$combined_group
+              )) +
+    
+    geom_col(position = position_dodge(width = 0.9),
+             color = "black",
+             fill = 'lightblue',
+             alpha = 0.95,
+             linewidth = 0.5) +
+    
+    labs(
+      title = plot_title,
+      x = element_blank(), 
+      y = element_blank(),
+      # x = input$x_column,
+      # y = y_axis_label,
+      fill = groups_title
+    )
+  
+  # Add type-specific formatting
+  if(input$y_axis_type == "Percentage") {
+    # Hard-code the percentage formatter
+    p <- p + scale_y_continuous(
+      labels = function(y) paste0(format(y, nsmall = 0), "%")
+    )
+  } else if(input$y_axis_type == "Currency") {
+    p <- p + scale_y_continuous(labels = scales::dollar)
+  } else {
+    p <- p + scale_y_continuous(labels = scales::comma)
+  }
+  
+  # Force display of all x-axis labels
+  p <- p + scale_x_discrete(
+    breaks = levels(as.factor(data[[input$x_column]])) # Explicitly define every break
+  )
+  
+  # Apply theming
+  p <- p + theme_minimal (
+    base_size = 36,
+    base_family = 'Cabin'
+    ) +
+    
+    theme(
+      panel.grid.major = element_line(
+        color = "gray", 
+        linewidth = 0.5
+        ),
+      
+      panel.grid.minor = element_blank(),
+      
+      legend.position = "none",
+      
+      plot.title = element_text(
+        hjust = 0.5,
+        size = rel(1.00), 
+        face = "bold"),
+      
+      axis.title = element_text(
+        size = rel(1.00)
+        ),
+      
+      axis.text = element_text(size = rel(.90)),
+      
+      # Ensure x-axis text is angled
+      axis.text.x = element_text(angle = 45, 
+                                 hjust = 1, 
+                                 vjust = 1
+                                 ),
+      
+      legend.title = element_text(size = rel(.90)),
+      
+      legend.text = element_text(size = rel(.90))
+      
+    )
+  
+  
+  # Save the plot to reactive values
+  plot_store$bar_chart <- p
+  
+  # Return the completed plot
+  return(p)
+  
+})
+
+
+
+#################  END BAR CHART LOGIC  #####
+
+
+
+
+
+################  BEGIN UNTRENDED I-CHART LOGIC  #####
+
+
+
+output$untrended_i_chart <- renderPlot({
+  # Require necessary inputs
+  req(
+    filtered_data(), input$x_column, input$y_column, input$chart_title,
+    input$year_range, input$multi_var_group, input$y_axis_type, input$divide_by_100
+  )
+
+  # Extract data from filtered_data() like the other charts
+  data <- filtered_data()
+
+  # Make sure we have some data
+  if (nrow(data) == 0) {
+    return(ggplot() +
+      annotate("text",
+        x = 0.5,
+        y = 0.5,
+        label = "No data available with current filters"
+      ) +
+        
+      theme_void())
+  }
+
+  # Process data for control limits calculation
+  data_control_limits <- data
+
+  # Process data according to divide_by_100 input
+  if (input$divide_by_100 == "Yes") {
+    # Divide values by 100 (e.g., convert 75 to 0.75)
+    data_control_limits[[input$y_column]] <- data_control_limits[[input$y_column]] / 100
+  }
+
+  # For percentage display, convert to percentage for visualization
+  if (input$y_axis_type == "Percentage") {
+    data_control_limits[[input$y_column]] <- data_control_limits[[input$y_column]] * 100
+  }
+
+  ### CALCULATE UNTRENDED CL, SD AND CONTROL LIMITS ###
+  emp_cl <- mean(data_control_limits[[input$y_column]], na.rm = TRUE) # Calculate empirical centerline
+
+  emp_sd <- mean(abs(diff(data_control_limits[[input$y_column]])), na.rm = TRUE) / 1.128 # Calculate empirical standard deviation
+
+  emp_lcl <- max(emp_cl - (3 * emp_sd), 0) # If LCL is negative, set it to zero
+
+  emp_ucl <- emp_cl + (3 * emp_sd) # Calculate empirical upper control limit
+
+  # Create modified dataset for chart (using data instead of df1)
+  data_modified <- data
+
+  # Process data according to divide_by_100 input
+  if (input$divide_by_100 == "Yes") {
+    # Divide values by 100 (e.g., convert 75 to 0.75)
+    data_modified[[input$y_column]] <- data_modified[[input$y_column]] / 100
+  }
+  # For percentage display, convert to percentage for visualization
+  if (input$y_axis_type == "Percentage") {
+    data_modified[[input$y_column]] <- data_modified[[input$y_column]] * 100
+  }
+
+  # Shewhart Rule #1: violations if value is outside UCL or LCL
+  sigma_signals <- data_modified[[input$y_column]] < emp_lcl | data_modified[[input$y_column]] > emp_ucl
+  emp_pts_out_of_control <- sigma_signals
+
+  # Add the 'out_of_control' column to the dataframe
+  data_modified$emp_pts_out_of_control <- emp_pts_out_of_control
+
+  # Runs analysis for changing CL color and linetype
+  runs <- sign(data_modified[[input$y_column]] - emp_cl)
+  runs <- runs[runs != 0]
+  runs_lengths <- rle(runs)$lengths
+  n_obs <- sum(runs_lengths)
+  longest_run <- max(runs_lengths)
+  n_runs <- length(runs_lengths)
+  n_crossings <- n_runs - 1
+  longest_run_max <- round(log2(n_obs) + 3)
+  n_crossings_min <- qbinom(.05, n_obs - 1, 0.5)
+
+  runs_signal <- (longest_run > longest_run_max | n_crossings < n_crossings_min)
+
+  # ADD EMPIRICAL CL, SD, UCL, LCL AND RUNS_SIGNAL TO data_modified
+  data_modified <- data_modified %>%
+    dplyr::mutate(
+      emp_cl = emp_cl, # add empirical centerline
+      emp_sd = emp_sd, # add empirical standard deviation
+      emp_lcl = emp_lcl, # add empirical lcl
+      emp_ucl = emp_ucl, # add empirical upper control limit
+      runs_signal = as.logical(runs_signal) # Ensure it's a column, not a constant
+    )
+
+  # Replace zeros in the value column with NA
+  data_modified[[input$y_column]] <- ifelse(data_modified[[input$y_column]] == 0,
+    NA,
+    data_modified[[input$y_column]]
+  )
+
+  # Compute x and y positions for geom_richtext
+  x_pos <- min(data_modified[[input$x_column]], na.rm = TRUE)
+  y_pos <- max(data_modified[[input$y_column]], na.rm = TRUE)
+  
+  ###############  BEGIN UNTRENDED I-CHART TITLES  #####
+  
+  # Create a combined title from user-selected columns (same as in previous function)
+  title_elements <- c()
+  for(col_name in input$chart_title) {
+    if(col_name %in% names(data_modified)) {
+      if(length(unique(data_modified[[col_name]])) == 1) {
+        title_elements <- c(title_elements, as.character(unique(data_modified[[col_name]])))
+      } else if(length(unique(data_modified[[col_name]])) <= 5) {
+        values <- paste(unique(data_modified[[col_name]]), collapse=", ")
+        title_elements <- c(title_elements, values)
+      } else {
+        n_values <- length(unique(data_modified[[col_name]]))
+        title_elements <- c(title_elements, paste0(n_values, " Values"))
+      }
+    }
+  }
+
+  # Combine title elements
+  title_content <- if (length(title_elements) > 0) {
+    paste(title_elements, collapse = " - ")
+  } else {
+    "Selected Data"
+  }
+
+  # Create the final title and subtitle
+  i_title <- paste0(
+    "<span style='color:darkorchid1'>",
+    "Expectation Chart (untrended): ",
+    title_content,
+    "</span>"
+  )
+
+  # Modify this subtitle section in your line chart code
+req(input$year_range, input$staar_grouping)  # Make sure these inputs exist
+
+i_subtitle <- paste0(
+  "For Students Reaching <i>'",
+  input$staar_grouping,
+  "'</i><br>for Years ",  # Use HTML tags <i> for italics and <br> for line break
+  input$year_range[1],
+  " - ",
+  input$year_range[2]
+)
+
+
+  ###############  END I-CHART TITLES  #####
+  
+  # Define y-axis LABEL based on User input
+  y_axis_label <- input$y_column
+
+  if (input$y_axis_type == "Percentage") {
+    y_axis_label <- "Percentage (%)"
+  } else if (input$y_axis_type == "Count") {
+    y_axis_label <- "Count"
+  } else if (input$y_axis_type == "Currency") {
+    y_axis_label <- "Amount ($)"
+  } else if (input$y_axis_type == "Rate") {
+    y_axis_label <- "Percentage (%)"
+  }
+
+  # Create caption
+  caption <- "\n Source: Texas Education Agency"
+
+  
+  # Create plot object I-chart USING GGPLOT2 ONLY
+  i_chart <- ggplot2::ggplot(
+    data_modified,
+    aes(
+      x = .data[[input$x_column]],
+      y = .data[[input$y_column]]
+    )
+  ) +
+    
+    # Add lines connecting the points
+    ggplot2::geom_line(
+      color = "darkgray",
+      linewidth = 2.0
+    ) +
+    
+    # Use 'color' to map logical TRUE/FALSE to red/black points
+    ggplot2::geom_point(aes(color = factor(emp_pts_out_of_control)),
+      size = 8
+    ) +
+    
+    ggplot2::scale_color_manual(values = c(
+      "TRUE" = "red",
+      "FALSE" = "blue"
+    )) +
+    
+    # CL line type depends on value of runs_signals
+    geom_line(aes(
+      y = emp_cl,
+      linetype = factor(runs_signal)
+    )) +
+    
+    scale_linetype_manual(values = c(
+      "FALSE" = "solid",
+      "TRUE" = "dashed"
+    )) +
+    
+    # Format emp_ucl LINE
+    ggplot2::geom_line(aes(y = emp_ucl),
+      color = "red",
+      linetype = "solid",
+      linewidth = 2
+    ) +
+    
+    # Format emp_lcl LINE
+    ggplot2::geom_line(aes(y = emp_lcl),
+      color = "red",
+      linetype = "solid",
+      linewidth = 2
+    ) +
+    
+    # Add labels
+    ggplot2::labs(
+      title = i_title,
+      subtitle = i_subtitle,
+      caption = caption,
+      x = element_blank(), 
+      y = element_blank()
+      # x = input$x_column,
+      # y = y_axis_label
+    ) 
+    
+
+# Compute the midpoint of the x-axis based on the year range
+x_midpoint <- mean(c(input$year_range[1], input$year_range[2]))
+
+
+
+# Then add this to your ggplot chain
+i_chart <- i_chart +
+  
+  # Disclose CL calculation - centered on x-axis
+  ggtext::geom_richtext(
+  aes(
+    label = paste0("<b><i>Highest, Lowest and Avg Expected Values",
+    "<br>",
+    "Are Accurate ONLY When Your Process is Stable</i></b>"),
+    x = x_midpoint,  # Use midpoint of x values to center box on x axis
+    y = y_pos
+  ),
+  size = 10,
+  color = "black",
+  hjust = .50,  # Set to 0 for left justification, .5 for center
+  vjust = -1,
+  fill = "lightblue",
+  label.color = "black",
+  label.size = unit(0.5, "inch"),  # Make the text outline box larger
+  label.padding = unit(c(10, 10, 5, 10), "pt"),  # top, right, bottom, left padding
+  lineheight = 0.8  # Reduce the line height to bring lines closer together
+)
+
+# # Disclose CL line type - centered on x-axis
+# ggtext::geom_richtext(
+#   aes(
+#     label = paste0("<b><i>If run rules violated, the centerline will be dashed, not solid</i></b>"),
+#     x = x_midpoint,  # Use the same x_midpoint calculated earlier
+#     y = min(data_modified[[input$y_column]], na.rm = TRUE)
+#   ),
+#   size = 10,
+#   color = "black",
+#   hjust = 0.5,  # Center the text horizontally
+#   vjust = 3,    # Position it below the min value
+#   fill = "pink",
+#   label.color = "black"
+# )
+
+  # Configure x-axis to show all years
+  if (is.numeric(data_modified[[input$x_column]])) {
+    i_chart <- i_chart +
+      ggplot2::scale_x_continuous(
+        breaks = unique(data_modified[[input$x_column]]),
+        expand = c(
+          0.15,
+          0.00
+        )
+      )
+  } else {
+    # For character/factor columns, use discrete scale
+    i_chart <- i_chart +
+      ggplot2::scale_x_discrete(
+        expand = c(
+          0.15,
+          0.00
+        )
+      )
+  }
+
+# Configure y-axis based on chart type
+if (input$y_axis_type == "percent") {
+  i_chart <- i_chart +
+    ggplot2::scale_y_continuous(
+      labels = function(y) paste0(format(y, nsmall = 0), "%"),
+      expand = c(0.25, 0.25),
+      name = "Percent (%)"
+    )
+} else if (input$y_axis_type == "rate") {
+  i_chart <- i_chart +
+    ggplot2::scale_y_continuous(
+      labels = scales::label_percent(),     #     function(y) paste0(format(y, nsmall = 0), "%"),
+      limits = c(0, 100),  # Fixed limit for rates (0-100%)
+      expand = c(0, 0),    # Remove padding to keep limits exact
+      name = "Percent (%)"
+    )
+} else if (input$y_axis_type == "currency") {
+  i_chart <- i_chart +
+    ggplot2::scale_y_continuous(
+      labels = scales::dollar,
+      expand = c(0.25, 0.25),
+      name = "Amount (USD)"
+    )
+} else if (input$y_axis_type == "count") {
+  i_chart <- i_chart +
+    ggplot2::scale_y_continuous(
+      labels = scales::comma,
+      expand = c(0.25, 0.25),
+      name = "Count"
+    )
+} else {
+  i_chart <- i_chart +
+    ggplot2::scale_y_continuous(
+      labels = scales::number_format(accuracy = 0.01),
+      expand = c(0.25, 0.25),
+      name = "Value"
+    )
+}
+
+  # Add fixed aspect ratio
+  # i_chart <- i_chart + coord_fixed(ratio = 2/5)
+  
+  # Set base size for all future fonts
+  i_chart <- i_chart + ggplot2::theme_minimal(
+    base_size = 36,
+    base_family = 'Cabin'
+  ) 
+
+  # Theme and title the plot object
+  i_chart <- i_chart +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45,
+                                          hjust = 1
+      ),
+      
+      aspect.ratio = 2/5,    # This will create a 5:2 aspect ratio (width:height) WITHIN THE PANEL ONLY
+      
+      legend.position = "none",
+      plot.title.position = "panel",
+      text = ggplot2::element_text(color = "royalblue"),
+      plot.title = ggtext::element_markdown(
+        color = "darkgreen",
+        size = ggplot2::rel(1.25),
+        face = "bold",
+        lineheight = 1.1,
+        margin = ggplot2::margin(0, 0, 0, 0, "pt")
+      ),
+      plot.subtitle = ggtext::element_markdown(
+        color = "darkgreen",
+        size = ggplot2::rel(1.1),
+        face = "bold",
+        lineheight = 0.90,
+        margin = ggplot2::margin(5, 0, 0, 0, unit = "pt")
+      ),
+      plot.caption = ggplot2::element_text(
+        size = ggplot2::rel(.95),
+        hjust = 0,
+        vjust = 2,
+        face = "italic",
+        color = "darkblue"
+      ),
+      strip.text = ggplot2::element_text(
+        color = "orange",
+        size = ggplot2::rel(1.1),
+        face = "italic",
+        margin = ggplot2::margin(2, 0, 0.5, 0, "lines")
+      ),
+      axis.text = ggplot2::element_text(color = "black"),
+      panel.background = ggplot2::element_rect(fill = "white", color = NA),
+      plot.background = ggplot2::element_rect(fill = "white", color = NA)
+    )
+
+  # Format and place text for Center Line
+  i_chart <- i_chart +
+    ggplot2::geom_text(
+      aes(
+        x = dplyr::first(!!sym(input$x_column)),
+        y = dplyr::first(emp_cl),
+        label = "Avg You Can Expect"
+      ),
+      color = "blue",
+      vjust = -1,
+      hjust = 0.50,
+      size = 10
+    ) +
+    # Format and place CL number
+    ggplot2::geom_text(
+      aes(
+        x = dplyr::last(!!sym(input$x_column)),
+        y = dplyr::last(emp_cl),
+        label = format(round(dplyr::last(emp_cl), 2))
+      ),
+      color = "blue",
+      vjust = 0,
+      hjust = -0.1,
+      size = 10
+    )
+
+  # Format and place text for emp UCL
+  i_chart <- i_chart +
+    ggplot2::geom_text(
+      aes(
+        x = dplyr::first(!!sym(input$x_column)) + 0.5,
+        y = dplyr::first(emp_ucl),
+        label = "Highest You Can Expect"
+      ),
+      color = "red",
+      vjust = -1,
+      hjust = 0.50,
+      size = 10
+    ) +
+    # Format and place number for emp_ucl
+    ggplot2::geom_text(
+      aes(
+        x = dplyr::last(!!sym(input$x_column)),
+        y = dplyr::last(emp_ucl),
+        label = format(round(dplyr::last(emp_ucl), 2))
+      ),
+      color = "red",
+      vjust = -1,
+      hjust = -0.1,
+      size = 10
+    )
+
+  # Format and place emp_lcl text and number
+  i_chart <- i_chart +
+    ggplot2::geom_text(
+      aes(
+        x = dplyr::first(!!sym(input$x_column)) + .5,
+        y = dplyr::first(emp_lcl),
+        label = "Lowest You Can Expect"
+      ),
+      color = "red",
+      vjust = 1.75,
+      hjust = 0.50,
+      size = 10
+    ) +
+    # Format and place number for emp_lcl
+    ggplot2::geom_text(
+      aes(
+        x = dplyr::last(!!sym(input$x_column)),
+        y = dplyr::last(emp_lcl),
+        label = format(round(dplyr::last(emp_lcl), 2))
+      ),
+      color = "red",
+      vjust = 1.5,
+      hjust = -0.1,
+      size = 10
+    )
+
+  # Add padding to individual plots
+  i_chart <- i_chart +
+    ggplot2::theme(
+      plot.margin = ggplot2::margin(
+        t = 0,
+        r = 0,
+        b = 0,
+        l = 0
+      )
+    )
+
+  # Save the plot to reactive values
+  plot_store$untrended_i_chart <- i_chart
+  
+  # Return the chart
+  return(i_chart)
+})
+
+
+############  END UNTRENDED I-CHART LOGIC  #####
+
+
+
+
+
+
+################  BEGIN TRENDED I-CHART LOGIC  #####
+
+
+output$trended_i_chart <- renderPlot({
+  # Require necessary inputs
+  req(
+    filtered_data(), input$x_column, input$y_column, input$chart_title,
+    input$year_range, input$multi_var_group, input$y_axis_type, input$divide_by_100
+  )
+
+  # Extract data from filtered_data()
+  data <- filtered_data()
+
+  # Make sure we have some data
+  if (nrow(data) == 0) {
+    return(ggplot() +
+      annotate("text",
+        x = 0.5,
+        y = 0.5,
+        label = "No data available with current filters"
+      ) +
+      theme_void())
+  }
+
+  # Process data for control limits calculation
+  data_control_limits <- data
+
+  # Process data according to divide_by_100 input
+  if (input$divide_by_100 == "Yes") {
+    # Divide values by 100 (e.g., convert 75 to 0.75)
+    data_control_limits[[input$y_column]] <- data_control_limits[[input$y_column]] / 100
+  }
+
+  # For percentage display, convert to percentage for visualization
+  if (input$y_axis_type == "Percentage") {
+    data_control_limits[[input$y_column]] <- data_control_limits[[input$y_column]] * 100
+  }
+
+  ### CALCULATE TRENDED CL, SD AND CONTROL LIMITS ###
+  # Fit a linear model to detect trend
+  model_formula <- as.formula(paste(input$y_column, "~", input$x_column))
+  model <- lm(model_formula, data = data_control_limits)
+  model_summary <- summary(model)
+  
+  # Extract regression statistics
+  p_value <- coef(model_summary)[2, 4]  # p-value for the slope
+  r_squared <- model_summary$r.squared
+  slope <- coef(model)[2]
+  intercept <- coef(model)[1]
+  
+  # Calculate residual SD for control limits
+  residuals_sd <- sd(residuals(model))
+  
+  # Create modified dataset for chart
+  data_modified <- data
+  
+  # Process data according to divide_by_100 input
+  if (input$divide_by_100 == "Yes") {
+    # Divide values by 100 (e.g., convert 75 to 0.75)
+    data_modified[[input$y_column]] <- data_modified[[input$y_column]] / 100
+  }
+  
+  # For percentage display, convert to percentage for visualization
+  if (input$y_axis_type == "Percentage") {
+    data_modified[[input$y_column]] <- data_modified[[input$y_column]] * 100
+  }
+  
+  # Calculate trended centerline and control limits
+  data_modified$centerline <- predict(model, newdata = data_modified)
+  data_modified$ucl <- data_modified$centerline + 3 * (residuals_sd/1.128)
+  data_modified$lcl <- data_modified$centerline - 3 * (residuals_sd/1.128)
+  
+  # Set lower control limit to zero if negative (just like in untrended chart)
+  data_modified$lcl <- pmax(data_modified$lcl, 0)
+  
+  # Add regression statistics to the data
+  data_modified$p_value_clean <- p_value
+  data_modified$r_sqr_value_clean <- r_squared
+  data_modified$slope <- slope
+  data_modified$intercept <- intercept
+  
+  # Shewhart Rule #1: violations if value is outside UCL or LCL
+  sigma_signals <- data_modified[[input$y_column]] < data_modified$lcl | data_modified[[input$y_column]] > data_modified$ucl
+  data_modified$emp_pts_out_of_control <- sigma_signals
+  
+  # Runs analysis for changing CL color and linetype
+  runs <- sign(data_modified[[input$y_column]] - data_modified$centerline)
+  runs <- runs[runs != 0]
+  runs_lengths <- rle(runs)$lengths
+  n_obs <- sum(runs_lengths)
+  longest_run <- max(runs_lengths)
+  n_runs <- length(runs_lengths)
+  n_crossings <- n_runs - 1
+  longest_run_max <- round(log2(n_obs) + 3)
+  n_crossings_min <- qbinom(.05, n_obs - 1, 0.5)
+  
+  runs_signal <- (longest_run > longest_run_max | n_crossings < n_crossings_min)
+  
+  # Add runs_signal to data_modified
+  data_modified <- data_modified %>%
+    dplyr::mutate(
+      runs_signal = as.logical(runs_signal) # Ensure it's a column, not a constant
+    )
+  
+  # Replace zeros in the value column with NA
+  data_modified[[input$y_column]] <- ifelse(data_modified[[input$y_column]] == 0,
+    NA,
+    data_modified[[input$y_column]]
+  )
+  
+  # Compute x and y positions for geom_richtext
+  x_pos <- min(data_modified[[input$x_column]], na.rm = TRUE)
+  y_pos <- max(data_modified[[input$y_column]], na.rm = TRUE)
+  
+  # Calculate y-position for bottom annotations (15% below the minimum data point)
+  bottom_y_pos <- min(data_modified[[input$y_column]], na.rm = TRUE) - 
+    diff(range(data_modified[[input$y_column]], na.rm = TRUE)) * 0.15
+  
+  ###############  BEGIN TRENDED I-CHART TITLES  #####
+  
+  # Create a combined title from user-selected columns (same as in previous function)
+  title_elements <- c()
+  for(col_name in input$chart_title) {
+    if(col_name %in% names(data_modified)) {
+      if(length(unique(data_modified[[col_name]])) == 1) {
+        title_elements <- c(title_elements, as.character(unique(data_modified[[col_name]])))
+      } else if(length(unique(data_modified[[col_name]])) <= 5) {
+        values <- paste(unique(data_modified[[col_name]]), collapse=", ")
+        title_elements <- c(title_elements, values)
+      } else {
+        n_values <- length(unique(data_modified[[col_name]]))
+        title_elements <- c(title_elements, paste0(n_values, " Values"))
+      }
+    }
+  }
+  
+  # Combine title elements
+  title_content <- if (length(title_elements) > 0) {
+    paste(title_elements, collapse = " - ")
+  } else {
+    "Selected Data"
+  }
+  
+  # Create the final title and subtitle
+  trended_i_title <- paste0(
+    "<span style='color:darkorchid1'>",
+    "Expectation Chart (trended): ",
+    title_content,
+    "</span>"
+  )
+  
+  # Modify this subtitle section in your line chart code
+  req(input$year_range, input$staar_grouping)  # Make sure these inputs exist
+  
+  trended_i_subtitle <- paste0(
+    "For Students Reaching <i>'",
+    input$staar_grouping,
+    "'</i><br>for Years ",  # Use HTML tags <i> for italics and <br> for line break
+    input$year_range[1],
+    " - ",
+    input$year_range[2]
+  )
+  
+  ###############  END TRENDED I-CHART TITLES  #####
+  
+  # Define y-axis LABEL based on User input
+  y_axis_label <- input$y_column
+  
+  if (input$y_axis_type == "Percentage") {
+    y_axis_label <- "Percentage (%)"
+  } else if (input$y_axis_type == "Count") {
+    y_axis_label <- "Count"
+  } else if (input$y_axis_type == "Currency") {
+    y_axis_label <- "Amount ($)"
+  } else if (input$y_axis_type == "Rate") {
+    y_axis_label <- "Percentage (%)"
+  }
+  
+  # Create caption
+  caption <- "\n Source: Texas Education Agency"
+  
+  # Compute the midpoint of the x-axis based on the year range
+  x_midpoint <- mean(c(input$year_range[1], input$year_range[2]))
+  
+  # Create regression equation string
+  reg_equation <- paste0(
+    "y = ", 
+    round(intercept, 2),
+    ifelse(slope >= 0, " + ", " - "),
+    round(abs(slope), 2),
+    "x"
+  )
+  
+  # Create plot object TRENDED I-chart USING GGPLOT2 ONLY
+  trended_i_chart <- ggplot2::ggplot(
+    data_modified,
+    aes(
+      x = .data[[input$x_column]],
+      y = .data[[input$y_column]]
+    )
+  ) +
+    
+    # Add lines connecting the points
+    ggplot2::geom_line(
+      color = "darkgray",
+      linewidth = 2.0
+    ) +
+    
+    # Use 'color' to map logical TRUE/FALSE to red/black points
+    ggplot2::geom_point(aes(color = factor(emp_pts_out_of_control)),
+      size = 8
+    ) +
+    
+    ggplot2::scale_color_manual(values = c(
+      "TRUE" = "red",
+      "FALSE" = "blue"
+    )) +
+    
+    # Trended centerline - line type depends on value of runs_signals
+    geom_line(aes(
+      y = centerline,
+      linetype = factor(runs_signal)
+    ),
+    color = "blue") +
+    
+    scale_linetype_manual(values = c(
+      "FALSE" = "solid",
+      "TRUE" = "dashed"
+    )) +
+    
+    # Format ucl LINE
+    ggplot2::geom_line(aes(y = ucl),
+      color = "red",
+      linetype = "solid",
+      linewidth = 2
+    ) +
+    
+    # Format lcl LINE
+    ggplot2::geom_line(aes(y = lcl),
+      color = "red",
+      linetype = "solid",
+      linewidth = 2
+    ) +
+    
+    # Add labels
+    ggplot2::labs(
+      title = trended_i_title,
+      subtitle = trended_i_subtitle,
+      caption = caption,
+      x = element_blank(), 
+      y = element_blank()
+    ) +
+    
+    # Disclose CL calculation - centered on x-axis
+    ggtext::geom_richtext(
+      aes(
+        label = paste0("<b><i>Highest, Lowest and Avg Expected Values",
+        "<br>",
+        "Account for Trend in Your Process</i></b>"),
+        x = x_midpoint,  # Use midpoint of x values to center box on x axis
+        y = y_pos
+      ),
+      size = 10,
+      color = "black",
+      hjust = .50,  # Set to 0 for left justification, .5 for center
+      vjust = -1,
+      fill = "lightblue",
+      label.color = "black",
+      label.size = unit(0.5, "inch"),  # Make the text outline box larger
+      label.padding = unit(c(10, 10, 5, 10), "pt"),  # top, right, bottom, left padding
+      lineheight = 0.8  # Reduce the line height to bring lines closer together
+    )
+  
+  # Configure x-axis to show all years
+  if (is.numeric(data_modified[[input$x_column]])) {
+    trended_i_chart <- trended_i_chart +
+      ggplot2::scale_x_continuous(
+        breaks = unique(data_modified[[input$x_column]]),
+        expand = c(
+          0.15,
+          0.00
+        )
+      )
+  } else {
+    # For character/factor columns, use discrete scale
+    trended_i_chart <- trended_i_chart +
+      ggplot2::scale_x_discrete(
+        expand = c(
+          0.15,
+          0.00
+        )
+      )
+  }
+  
+  # Configure y-axis based on chart type with extended lower range for text boxes
+  if (input$y_axis_type == "percent") {
+    trended_i_chart <- trended_i_chart +
+      ggplot2::scale_y_continuous(
+        labels = function(y) paste0(format(y, nsmall = 0), "%"),
+        expand = c(0.25, 0.25),
+        name = "Percent (%)",
+        # Add extra space at the bottom for text annotations
+        limits = function(y) c(min(y) - diff(range(y))*0.20, max(y) + diff(range(y))*0.05)
+      )
+  } else if (input$y_axis_type == "rate") {
+    trended_i_chart <- trended_i_chart +
+      ggplot2::scale_y_continuous(
+        labels = scales::label_percent(),
+        limits = c(0, 100),  # Fixed limit for rates (0-100%)
+        expand = c(0, 0.20),    # Add padding at bottom for labels
+        name = "Percent (%)"
+      )
+  } else if (input$y_axis_type == "currency") {
+    trended_i_chart <- trended_i_chart +
+      ggplot2::scale_y_continuous(
+        labels = scales::dollar,
+        expand = c(0.25, 0.25),
+        name = "Amount (USD)",
+        # Add extra space at the bottom for text annotations
+        limits = function(y) c(min(y) - diff(range(y))*0.20, max(y) + diff(range(y))*0.05)
+      )
+  } else if (input$y_axis_type == "count") {
+    trended_i_chart <- trended_i_chart +
+      ggplot2::scale_y_continuous(
+        labels = scales::comma,
+        expand = c(0.25, 0.25),
+        name = "Count",
+        # Add extra space at the bottom for text annotations
+        limits = function(y) c(min(y) - diff(range(y))*0.20, max(y) + diff(range(y))*0.05)
+      )
+  } else {
+    trended_i_chart <- trended_i_chart +
+      ggplot2::scale_y_continuous(
+        labels = scales::number_format(accuracy = 0.01),
+        expand = c(0.25, 0.25),
+        name = "Value",
+        # Add extra space at the bottom for text annotations
+        limits = function(y) c(min(y) - diff(range(y))*0.20, max(y) + diff(range(y))*0.05)
+      )
+  }
+  
+  # Set base size for all future fonts
+  trended_i_chart <- trended_i_chart + ggplot2::theme_minimal(
+    base_size = 36,
+    base_family = 'Cabin'
+  ) 
+  
+  # Theme and title the plot object
+  trended_i_chart <- trended_i_chart +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 45,
+                                          hjust = 1
+      ),
+      
+      aspect.ratio = 2/5,    # This will create a 5:2 aspect ratio (width:height) WITHIN THE PANEL ONLY
+      
+      legend.position = "none",
+      plot.title.position = "panel",
+      text = ggplot2::element_text(color = "royalblue"),
+      plot.title = ggtext::element_markdown(
+        color = "darkgreen",
+        size = ggplot2::rel(1.25),
+        face = "bold",
+        lineheight = 1.1,
+        margin = ggplot2::margin(0, 0, 0, 0, "pt")
+      ),
+      plot.subtitle = ggtext::element_markdown(
+        color = "darkgreen",
+        size = ggplot2::rel(1.1),
+        face = "bold",
+        lineheight = 0.90,
+        margin = ggplot2::margin(5, 0, 0, 0, unit = "pt")
+      ),
+      plot.caption = ggplot2::element_text(
+        size = ggplot2::rel(.95),
+        hjust = 0,
+        vjust = 2,
+        face = "italic",
+        color = "darkblue"
+      ),
+      strip.text = ggplot2::element_text(
+        color = "orange",
+        size = ggplot2::rel(1.1),
+        face = "italic",
+        margin = ggplot2::margin(2, 0, 0.5, 0, "lines")
+      ),
+      axis.text = ggplot2::element_text(color = "black"),
+      panel.background = ggplot2::element_rect(fill = "white", color = NA),
+      plot.background = ggplot2::element_rect(fill = "white", color = NA)
+    )
+  
+  # Get first and last values for trend lines to display text
+  first_x <- dplyr::first(data_modified[[input$x_column]])
+  last_x <- dplyr::last(data_modified[[input$x_column]])
+  
+  # Format and place text for Center Line - adapted for trended
+  trended_i_chart <- trended_i_chart +
+    ggplot2::geom_text(
+      aes(
+        x = first_x,
+        y = dplyr::first(centerline),
+        label = "Avg You Can Expect"
+      ),
+      color = "blue",
+      vjust = -1,
+      hjust = 0.50,
+      size = 10
+    ) +
+    # Format and place CL number
+    ggplot2::geom_text(
+      aes(
+        x = last_x,
+        y = dplyr::last(centerline),
+        label = format(round(dplyr::last(centerline), 2))
+      ),
+      color = "blue",
+      vjust = 0,
+      hjust = -0.1,
+      size = 10
+    )
+  
+  # Format and place text for UCL
+  trended_i_chart <- trended_i_chart +
+    ggplot2::geom_text(
+      aes(
+        x = first_x + 0.5,
+        y = dplyr::first(ucl),
+        label = "Highest You Can Expect"
+      ),
+      color = "red",
+      vjust = -1,
+      hjust = 0.50,
+      size = 10
+    ) +
+    # Format and place number for ucl
+    ggplot2::geom_text(
+      aes(
+        x = last_x,
+        y = dplyr::last(ucl),
+        label = format(round(dplyr::last(ucl), 2))
+      ),
+      color = "red",
+      vjust = -1,
+      hjust = -0.1,
+      size = 10
+    )
+  
+  # Format and place lcl text and number
+  trended_i_chart <- trended_i_chart +
+    ggplot2::geom_text(
+      aes(
+        x = first_x + .5,
+        y = dplyr::first(lcl),
+        label = "Lowest You Can Expect"
+      ),
+      color = "red",
+      vjust = 1.75,
+      hjust = 0.50,
+      size = 10
+    ) +
+    # Format and place number for lcl
+    ggplot2::geom_text(
+      aes(
+        x = last_x,
+        y = dplyr::last(lcl),
+        label = format(round(dplyr::last(lcl), 2))
+      ),
+      color = "red",
+      vjust = 1.5,
+      hjust = -0.1,
+      size = 10
+    )
+  
+  # Add statistical information at bottom of plot
+  trended_i_chart <- trended_i_chart +
+    # Add p-value text at bottom left
+    ggtext::geom_richtext(
+      aes(
+        x = min(data_modified[[input$x_column]], na.rm = TRUE),
+        y = bottom_y_pos
+      ),
+      label = paste("*p*-value:", round(p_value, 3)),
+      fill = "lightblue",
+      label.color = "black",
+      size = 12,
+      hjust = 0,
+      vjust = 6.0
+    ) +
+    
+    # Add R^2 value text at bottom right
+    ggtext::geom_richtext(
+      aes(
+        x = max(data_modified[[input$x_column]], na.rm = TRUE),
+        y = bottom_y_pos
+      ),
+      label = paste("Unadj *R*<sup>2</sup> =", round(r_squared, 2)),
+      fill = "lightgreen",
+      label.color = "black",
+      size = 12,
+      hjust = 1,
+      vjust = 6.0
+    ) +
+    
+    # Add regression equation text in middle bottom
+    ggtext::geom_richtext(
+      aes(
+        x = x_midpoint,
+        y = bottom_y_pos
+      ),
+      label = paste("<b>Equation:</b>", reg_equation),
+      fill = "lightyellow",
+      label.color = "black",
+      size = 12,
+      hjust = 0.5,
+      vjust = 6.0
+    )
+  
+  # Add padding to individual plots
+  trended_i_chart <- trended_i_chart +
+    ggplot2::theme(
+      plot.margin = ggplot2::margin(
+        t = 0,
+        r = 0,
+        b = 0,
+        l = 0
+      )
+    )
+  
+  # Save the plot to reactive values
+  plot_store$trended_i_chart <- trended_i_chart
+  
+  # Return the chart
+  return(trended_i_chart)
+})
+
+
+############  END TRENDED I-CHART LOGIC  #####
+
+
+
+####################  BEGIN COHORT CHART LOGIC  #####
+
+# Print debugging info
+  print("Rendering cohort chart")
+
+output$cohort_chart <- renderPlot({
+  
+  # Require data
+  req(cohort_data())
+  data <- cohort_data()
+  
+  print(paste("Cohort data has", nrow(data), "rows"))
+  
+  # Make sure we have data
+  if (nrow(data) == 0) {
+    print("No cohort data available")
+    return(ggplot() +
+      annotate("text", x = 0.5, y = 0.5, 
+               label = "No cohort data available with current selections.\nTry adjusting filters or cohort settings.") +
+      theme_void())
+  }
+  
+  # Create title elements ONLY from the current cohort data
+  title_elements <- c()
+  for(col_name in input$chart_title) {
+    if(col_name %in% names(data)) {
+      # Use ONLY values from the current cohort data
+      cohort_values <- unique(data[[col_name]])
+      
+      if(length(cohort_values) == 1) {
+        title_elements <- c(title_elements, as.character(cohort_values))
+      } else if(length(cohort_values) <= 5) {
+        values <- paste(cohort_values, collapse=", ")
+        title_elements <- c(title_elements, values)
+      } else {
+        n_values <- length(cohort_values)
+        title_elements <- c(title_elements, paste0(n_values, " Values"))
+      }
+    }
+  }
+  
+  # Combine title elements
+  title_content <- if (length(title_elements) > 0) {
+    paste(title_elements, collapse = " - ")
+  } else {
+    "Selected Data"
+  }
+  
+  # Create cohort-specific title
+  title <- paste0(
+    "<span style='color:darkorchid1'>",
+    "Cohort Progression: ", 
+    title_content,
+    "</span>"
+  )
+  
+  subtitle <- paste0(
+    "Tracking cohort from Grade ", input$cohort_start_grade, 
+    " (", input$cohort_start_year, ")"
+  )
+  
+  # Create y-axis label based on type
+  y_axis_label <- input$y_column
+  
+  if (input$y_axis_type == "Percentage") {
+    y_axis_label <- "Percentage (%)"
+  }  else if (input$y_axis_type == "Rate") {
+    y_axis_label <- "Percentage (%) Count"
+  }  else if (input$y_axis_type == "Count") {
+    y_axis_label <- "Count"
+  } else if (input$y_axis_type == "Currency") {
+    y_axis_label <- "Amount ($)"
+  }
+  
+  # Create the chart using progression as x-axis
+  p <- ggplot(data,
+              aes(x = progression,
+                  y = .data[[input$y_column]])) +
+    geom_line(group = 1, color = "darkgray", linewidth = 2.0) +
+    geom_point(size = 8, color = "blue") +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      caption = "\n Source: Texas Education Agency",
+      x = element_blank(),
+      y = element_blank()
+      # x = "Academic Progression",
+      # y = y_axis_label
+    ) +
+    theme_minimal(
+      base_size = 36,
+      base_family = 'Cabin'
+      ) +
+    
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      panel.grid.major = element_line(color = "gray", linewidth = 0.5),
+      panel.grid.minor = element_blank(),
+      plot.title.position = "panel",
+      text = element_text(color = "royalblue"),
+      plot.title = ggtext::element_markdown(
+        color = "darkgreen",
+        size = rel(1.25),
+        face = "bold",
+        lineheight = 1.1,
+        margin = margin(0, 0, 0, 0, "pt")
+      ),
+      plot.subtitle = ggtext::element_markdown(
+        color = "darkgreen",
+        size = rel(1.1),
+        face = "bold",
+        lineheight = 0.90,
+        margin = margin(5, 0, 0, 0, "pt")
+      ),
+      plot.caption = element_text(
+        size = rel(.95),
+        hjust = 0,
+        vjust = 2,
+        face = "italic",
+        color = "darkblue"
+      ),
+      axis.text = element_text(color = "black")
+    )
+  
+  # Configure y-axis based on chart type
+  if (input$y_axis_type == "Percentage") {
+    p <- p + scale_y_continuous(
+      labels = function(y) paste0(format(y, nsmall = 0), "%"),
+      expand = c(0.25, 0.25)
+    )
+  } else if (input$y_axis_type == "Currency") {
+    p <- p + scale_y_continuous(
+      labels = scales::dollar,
+      expand = c(0.25, 0.25)
+    )
+  } else {
+    p <- p + scale_y_continuous(
+      labels = scales::comma,
+      expand = c(0.25, 0.25)
+    )
+  }
+  
+  # Save the plot for download
+  plot_store$cohort_chart <- p
+  
+  # Return the plot
+  return(p)
+  
+})
+
+
+####################  END COHORT CHART LOGIC  #####
+
+
+
+####################  BEGIN DOWNLOAD HANDLERS  #####
+
+
+# Create a reactive values object to store the latest plot objects
+plot_store <- reactiveValues(
+  run_chart = NULL,
+  line_chart = NULL,
+  bar_chart = NULL,
+  untrended_i_chart = NULL,
+  cohort_chart = NULL  # Add this line
+)
+
+# Download handlers for each chart - PNG only
+output$download_run_chart <- downloadHandler(
+  filename = function() {
+    paste("run-chart-", format(Sys.Date(), "%Y%m%d"), ".png", sep = "")
+  },
+  content = function(file) {
+    tryCatch({
+      # Check if plot exists
+      if (is.null(plot_store$run_chart)) {
+        message("Run chart is NULL. Please create a chart first.")
+        return()
+      }
+      
+      # PNG export only
+      ggsave(file, plot = plot_store$run_chart, device = "png", 
+             width = 12, height = 8, dpi = 300,
+             limitsize = FALSE)
+    }, error = function(e) {
+      # Log the error
+      message("Error in download_run_chart: ", e$message)
+    })
+  }
+)
+
+
+output$download_line_chart <- downloadHandler(
+  filename = function() {
+    paste("line-chart-", format(Sys.Date(), "%Y%m%d"), ".png", sep = "")
+  },
+  content = function(file) {
+    tryCatch({
+      # Check if plot exists
+      if (is.null(plot_store$line_chart)) {
+        message("Line chart is NULL. Please create a chart first.")
+        return()
+      }
+      
+      # PNG export only
+      ggsave(file, plot = plot_store$line_chart, device = "png", 
+             width = 12, height = 8, dpi = 300,
+             limitsize = FALSE)
+    }, error = function(e) {
+      # Log the error
+      message("Error in download_line_chart: ", e$message)
+    })
+  }
+)
+
+
+
+output$download_bar_chart <- downloadHandler(
+  filename = function() {
+    paste("bar-chart-", format(Sys.Date(), "%Y%m%d"), ".png", sep = "")
+  },
+  content = function(file) {
+    tryCatch({
+      # Check if plot exists
+      if (is.null(plot_store$bar_chart)) {
+        message("Bar chart is NULL. Please create a chart first.")
+        return()
+      }
+      
+      # PNG export only
+      ggsave(file, plot = plot_store$bar_chart, device = "png", 
+             width = 12, height = 8, dpi = 300,
+             limitsize = FALSE)
+    }, error = function(e) {
+      # Log the error
+      message("Error in download_bar_chart: ", e$message)
+    })
+  }
+)
+
+
+
+output$download_untrended_i_chart <- downloadHandler(
+  filename = function() {
+    paste("untrended-i-chart-", format(Sys.Date(), "%Y%m%d"), ".png", sep = "")
+  },
+  content = function(file) {
+    tryCatch({
+      # Check if plot exists
+      if (is.null(plot_store$untrended_i_chart)) {
+        message("I-chart is NULL. Please create a chart first.")
+        return()
+      }
+      
+      # PNG export only
+      ggsave(file, plot = plot_store$untrended_i_chart, device = "png", 
+             width = 14, height = 10, dpi = 300,
+             limitsize = FALSE)
+    }, error = function(e) {
+      # Log the error
+      message("Error in download_untrended_i_chart: ", e$message)
+    })
+  }
+)
+
+
+
+# Add download handler for cohort chart
+
+output$download_cohort_chart <- downloadHandler(
+  filename = function() {
+    paste("cohort-chart-", format(Sys.Date(), "%Y%m%d"), ".png", sep = "")
+  },
+  content = function(file) {
+    tryCatch({
+      if (is.null(plot_store$cohort_chart)) {
+        message("Cohort chart is NULL. Please create a chart first.")
+        return()
+      }
+      
+      # Add explicit white background to the plot before saving
+      # Also add more generous margins and increase the size of axis elements
+      p <- plot_store$cohort_chart +
+        theme(
+          panel.background = element_rect(fill = "white", color = NA),
+          plot.background = element_rect(fill = "white", color = NA),
+          plot.margin = margin(0.5, 1.5, 0.5, 0.5, "in"),  # top, right, bottom, left
+          
+          # Increase size of axis text elements
+          axis.text.x = element_text(size = rel(1.5), face = "bold"),
+          axis.text.y = element_text(size = rel(1.5), face = "bold"),
+          
+          # Increase size of axis titles
+          axis.title.x = element_text(size = rel(1.5), face = "bold", margin = margin(t = 20)),
+          axis.title.y = element_text(size = rel(1.5), face = "bold", margin = margin(r = 20)),
+          
+          # Ensure tick marks are more visible
+          axis.ticks = element_line(size = 1),
+          axis.ticks.length = unit(0.15, "cm")
+        )
+      
+      # Use wider dimensions and ensure titles fit
+      ggsave(file, plot = p, device = "png", 
+             width = 14, height = 9, dpi = 300,
+             limitsize = FALSE, bg = "white")
+    }, error = function(e) {
+      message("Error in download_cohort_chart: ", e$message)
+    })
+  }
+)
+
+####################  END DOWNLOAD HANDLERS  #####
+
+
+
+
+############  END OF SERVER LOGIC SECTION  #####
+
+
+```
+
+
+
+
+<!-- ####################  BEGIN VISUALIZATIONS SECTION -->
+
+
+# Data Table {data-icon="fa-signal" data-width=650}
+
+```{r display-table}
+
+# Output Table title with styling
+tags$h2("CLICK ON COLUMNS TO SORT",
+        style = "text-align: center;
+        font-size: 20px;
+        font-weight: bold;
+        color: #2E86C1;")
+
+
+DTOutput("data_frame_chosen")
+
+```
+
+
+
+# Run Chart  {data-icon="fa-signal" data-width=200 data-height=200}
+
+```{r display-run-chart}
+
+div(class = "download-section",
+    downloadButton("download_run_chart", "Download Chart")
+)
+
+plotOutput("run_chart_plot")
+
+```
+
+
+
+
+# Bar Chart  {data-icon="fa-signal" data-width=650}
+
+```{r display-bar-chart}
+div(class = "download-section",
+    downloadButton("download_bar_chart", "Download Chart")
+)
+
+plotOutput("bar_chart")
+
+```
+
+
+# Line Chart  {data-icon="fa-signal" data-width=650}
+
+```{r display-line-chart}
+div(class = "download-section",
+    downloadButton("download_line_chart", "Download Chart")
+)
+
+plotOutput("line_chart",
+           height = "800px")
+
+```
+
+
+# Untrended I-Chart  {data-icon="fa-signal" data-width=650}
+
+```{r display-untrended-i-chart}
+div(class = "download-section",
+    downloadButton("download_untrended_i_chart", "Download Chart")
+)
+
+plotOutput("untrended_i_chart", height = "800px")
+
+```
+
+
+
+# Trended I-Chart  {data-icon="fa-signal" data-width=650}
+
+```{r display-trended-i-chart}
+div(class = "download-section",
+    downloadButton("download_trended_i_chart", "Download Chart")
+)
+
+plotOutput("trended_i_chart", height = "800px")
+
+```
+
+
+
+# Cohort Progression {data-icon="fa-users" data-width=650}
+
+```{r display-cohort-chart}
+div(class = "download-section",
+    downloadButton("download_cohort_chart", "Download Chart")
+)
+
+plotOutput("cohort_chart", height = "600px")
+
+```
+
+# Debug Info
+```{r}
+# Debug Info {data-height=200}
+verbatimTextOutput("debug_info")
+```
+
+
+
+<!-- ####################  END VISUALIZATIONS SECTION -->
+
+
+
+
+```{r, cleaning-survey-data, eval=FALSE}
+# 
+# library(readr)
+# library(tidyverse)
+# library(here)
+# 
+# 
+# # Read the original CSV
+# raw_data <- read_csv(here(
+# "data", "SCUC Teacher-Student Relationships Surveys.csv")
+# )
+# 
+# 
+# # Convert percentage column to numeric
+# raw_data$`Percent Favorable` <- as.numeric(gsub("[%]", "", raw_data$`Percent Favorable`)) / 100
+# raw_data$`Sense of Belonging` <- as.numeric(gsub("[%]", "", raw_data$`Sense of Belonging`)) / 100
+# 
+# glimpse(raw_data)
+# 
+# # Write the cleaned data to a new CSV
+# write_csv(raw_data, "data/cleaned_SCUC_Teacher-Student Relationships Surveys.csv")
+
+```
+
+
+```{r, removing-problems-from-survey-data, eval=FALSE}
+
+# 
+# library(readr)
+# library(tidyverse)
+# library(here)
+# 
+# 
+# 
+# # Read the problematic file
+# problem_data <- read_csv(here("data", "cleaned_SCUC_Teacher-Student Relationships Surveys.csv")
+# )
+# 
+# # Remove rows where Level is NA or "Video about survey results:"
+# cleaned_data <- problem_data %>%
+#   filter(!is.na(Level) & Level != "Video about survey results:")
+# 
+# 
+# # Optional: Remove rows where both Percent Favorable and Sense of Belonging are NA
+# cleaned_data <- cleaned_data %>%
+#   filter(!(is.na(`Percent Favorable`) & is.na(`Sense of Belonging`)))
+# 
+# 
+# # Write the cleaned file
+# write_csv(cleaned_data, "data/cleaned_SCUC_Teacher-Student Relationships Surveys.csv")
+
+```
+
+
+

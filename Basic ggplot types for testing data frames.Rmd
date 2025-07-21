@@ -1,0 +1,178 @@
+---
+title: "Basic ggplot types for testing data frames"
+author: "Dan Swart"
+date: "`r Sys.Date()`"
+format:
+  html:
+    include-after-body: 
+      - text: |
+         <script type="text/javascript" src="reference-backlinks.js"></script>
+    css: 
+      - swart.css
+      # - this-doc-only.css
+    page-layout: full
+    fig-width: 12
+    fig-height: 10
+    fig-dpi: 300
+    df-print: paged
+    code-overflow: wrap
+    toc: true
+    citeproc: true
+    link-citations: true
+  typst:
+    fig-width: 12
+    fig-height: 10
+    fig-dpi: 300
+    margin:
+      x: 1in
+      y: 1in
+    toc: true
+    fontsize: 14pt
+    mainfont: "Latin Modern Roman"
+execute:
+  echo: false
+  message: false
+  warning: false
+  fig-width: 12
+  fig-height: 10
+---
+
+```{r}
+#| label: setup
+
+# load libraries
+library(tidyverse)
+
+# Set global theme for consistent plots
+theme_set(theme_minimal(base_size = 16) + 
+          theme(
+    plot.title = element_text(face = "bold", size = 24),    # adjust title size
+    plot.subtitle = element_text(face = "bold", size = 20), # adjust subtitle size
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    axis.text.x = element_text(face = "bold", angle = 45, hjust = 1),
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold"),
+    panel.spacing.x = unit(1.5, "cm"),  # Horizontal spacing only
+    panel.spacing.y = unit(1.5, "cm"),   # Vertical spacing only
+    plot.margin = margin(20, 20, 20, 20, "pt")
+    )
+)
+
+# Set seed for reproducibility
+set.seed(42)
+
+```
+
+---
+
+```{r}
+library(tidyverse)
+library(readr)
+library(here)
+library(ggokabeito)
+
+```
+
+
+```{r}
+
+# data <- read_csv(here("data", "test_survey_data_export.csv"))
+
+data <- read_csv(here("data", "20250323 cleaned_SCUC_Teacher-Student Relationships Surveys-WIDE.csv"))
+
+# Order the 'survey_period' factor based on the 'x' numerical column
+data$survey_period <- factor(data$survey_period, levels = data$survey_period[order(data$x)])
+
+# Pivot the data longer
+data_long <- data %>%
+  pivot_longer(cols = c(sense_of_belonging, percent_favorable), 
+               names_to = "survey_type", 
+               values_to = "value")
+
+
+ggplot(data_long, 
+       aes(x = survey_period,
+           y = value,
+           group = survey_type,
+           color = survey_type
+           )
+       ) +
+  
+  geom_line(linewidth = 2,
+            color = 'grey'
+            ) +
+  
+  geom_point(aes(fill = survey_type),
+             size = 5
+             ) +
+  
+
+  
+  scale_color_manual(values = c('#0072B2', '#D55E00', '#009E73', "#CC79A7")) +
+                    #  "#E69F00" "#0072B2"  "#D55E00"  "#009E73"  "#CC79A7" "#F0E442" "#999999" "#000000" "#56B4E9" )
+
+  scale_x_discrete(breaks = unique(data$survey_period)) +  # Use unique values from the x column
+
+  labs(title = "Exploratory Line Plot with Rotated X-axis Labels"
+       )
+
+
+
+
+```
+
+
+```{r column-chart}
+
+
+# data <- read_csv(here("data", "test_survey_data_export.csv"))
+
+data <- read_csv(here("data", "20250323 cleaned_SCUC_Teacher-Student Relationships Surveys-WIDE.csv"))
+
+
+# Order the 'survey_period' factor based on the 'x' numerical column
+data$survey_period <- factor(data$survey_period, levels = data$survey_period[order(data$x)])
+
+# Pivot the data longer
+data_long <- data %>%
+  pivot_longer(cols = c(sense_of_belonging, percent_favorable), 
+               names_to = "survey_type", 
+               values_to = "value")
+
+
+ggplot(data_long, 
+       aes(x = survey_period,
+           y = value,
+           fill = survey_type,
+           group = survey_type
+           )
+       ) +
+  
+  geom_col(position = "dodge",
+           width = 0.7,
+           color = 'white'
+            ) +
+  
+  
+  scale_fill_manual(values = c('#0072B2', '#D55E00', '#009E73', "#CC79A7")) +
+                    #  "#E69F00" "#0072B2"  "#D55E00"  "#009E73"  "#CC79A7" "#F0E442" "#999999" "#000000" "#56B4E9" )
+  
+  scale_x_discrete(breaks = unique(data$survey_period)) +  # Use unique values from the x column
+
+  labs(title = "Exploratory Column Plot with Rotated X-axis Labels"
+       )
+
+
+
+```
+
+
+```{r}
+
+# write.csv(data_long, "data/20250323 cleaned_SCUC_Teacher-Student Relationships Surveys-LONG.csv", row.names = FALSE)
+
+
+
+```
+

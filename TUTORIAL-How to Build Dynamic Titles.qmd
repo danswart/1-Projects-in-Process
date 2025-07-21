@@ -1,0 +1,351 @@
+---
+title: "How to Build Titles and Subtitles"
+author: "Dan Swart"
+date: "`r Sys.Date()`"
+# bibliography: manual-refs.bib
+format:
+  html:
+    include-after-body: 
+      - text: |
+         <script type="text/javascript" src="reference-backlinks.js"></script>
+    css: 
+      - swart.css
+    page-layout: full
+    fig-width: 12
+    fig-height: 10
+    fig-dpi: 300
+    df-print: paged
+    code-overflow: wrap
+    toc: true
+    citeproc: true
+    link-citations: true
+  typst:
+    fig-width: 12
+    fig-height: 10
+    fig-dpi: 300
+    margin:
+      x: 1in
+      y: 1in
+    toc: true
+    fontsize: 14pt
+    mainfont: "Latin Modern Roman"
+execute:
+  eval: false
+  echo: true
+  message: false
+  warning: false
+  fig-width: 12
+  fig-height: 10
+---
+
+```{r setup, include=FALSE}
+#| label: setup
+
+# load libraries
+library(tidyverse)
+
+# Set global theme for consistent plots
+theme_set(theme_minimal(base_size = 16) + 
+          theme(
+    plot.title = element_text(face = "bold", size = 24),    # adjust title size
+    plot.subtitle = element_text(face = "bold", size = 20), # adjust subtitle size
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    axis.text.x = element_text(face = "bold", angle = 45, hjust = 1),
+    legend.position = "bottom",
+    strip.text = element_text(face = "bold"),
+    panel.spacing.x = unit(1.5, "cm"),  # Horizontal spacing only
+    panel.spacing.y = unit(1.5, "cm"),   # Vertical spacing only
+    plot.margin = margin(20, 20, 20, 20, "pt")
+    )
+)
+
+
+# Set seed for reproducibility
+set.seed(123)
+
+```
+
+<br>
+
+## Here's a step-by-step explanation of how the title and subtitle are created and displayed in this advanced line plot code.  It assumes the plotting code utilizes a 'group' argument to create the plot.
+<br>
+
+The dataframe chosen by the User is monitored and updated by the Server.
+
+```{r}
+#| eval: false
+#| echo: true
+
+# File upload chooser button
+fileInput(inputId = "file_chosen",
+          label = "Choose a CVS File",
+          accept = c(".csv")) 
+
+
+# File upload observer feeds 'column_data' to global data storage called 'column_data'
+observeEvent(input$file_chosen, {
+  req(input$file_chosen)
+
+  # Read the CSV file
+  data <- read_csv(input$file_chosen$datapath, col_names = TRUE)
+  
+  # Store data frame selected by user.  Updated when different data frame is chosen by user  
+  data_reactive(data)     
+
+  # Store column names in imported data frame.  Updated when different data frame is chosen by user
+  column_choices(names(data))
+  
+  # Store unique values of row contents of each column name.  Updated when different data frame is chosen by user
+  column_data(lapply(data, unique))     
+  
+})   
+
+```
+
+<br>
+
+### In the global r-chunk, 'column_choices' stores and updates column names available for selection during the runtime of the app.
+
+
+```{r, eval=FALSE}
+
+
+column_choices <- reactiveVal(NULL) 
+
+```
+
+
+### The Server monitors 'column_choices', creates inputID 'chart_title' and adds 'output$chart_title_selected' to the OUTPUT dataframe storing the title names selected by the User.
+
+
+```{r, eval=FALSE}
+
+# Generate dropdown of column names for chart title selection
+output$chart_title_selected <- renderUI({
+  req(column_choices())
+  selectInput(
+    inputId = "chart_title",
+    label = "Select Columns for Chart Title:",
+    choices = column_choices(),
+    selected = column_choices()[1],  # Default to first column
+    multiple = TRUE                  # Allow selecting multiple columns
+  )
+})
+
+
+# inputID = "chart_title" populates this
+# dropdown for Chart Title selection
+uiOutput("chart_title_selected")      
+
+```
+
+### The Server also monitors 'column_choices', creates inputID 'chart_subtitle' and adds 'output$chart_sutitle_selected' to the OUTPUT dataframe storing the subtitle names selected by the User.
+
+
+```{r, eval=FALSE}
+}
+# Generate dropdown of column names for chart subtitle selection
+output$chart_subtitle_selected <- renderUI({
+  req(column_choices())
+  selectInput(
+    inputId = "chart_subtitle",
+    label = "Select Value for Chart Subtitle:",
+    choices = column_choices(),                  # these are row names of selected columns
+    selected = "year"                            # column_choices()[2] # Default selection
+  )
+})
+
+# inputID = "chart_subtitle" populates this
+# dropdown for Chart Subtitle column selection
+uiOutput("chart_subtitle_selected")   
+
+```
+
+
+### The Server also monitors 'column_choices', creates inputID 'advanced_line_group' and adds 'output$advanced_line_group_selected' to the OUTPUT dataframe storing the names selected by the User.
+
+
+```{r, eval=FALSE}
+
+# ADVANCED multi-line chart dropdown (for multiple category selection)
+output$advanced_line_group_selected <- renderUI({
+  req(column_choices())
+  selectizeInput(  # Using selectizeInput for better multiple selection
+    inputId = "advanced_line_group",
+    label = "For Line Charts:  Select Categories for Detailed Comparison:",
+    choices = column_choices(),
+    selected = "group",
+    multiple = TRUE,  # Allow multiple selections
+    options = list(plugins = list('remove_button'))
+  )
+})
+
+
+# inputID = "advanced_line_group" populates this
+# dropdown for selecting grouping variable(s) for all charts that can display more than 1 variable
+uiOutput("advanced_line_group_selected")
+
+
+
+```
+
+<br>
+### Store the names collected by the 'advanced_line_group' dropdown in the object 'groups_title'
+
+
+```{r, eval=FALSE}
+
+# Create a string containing all title names selected
+groups_title <- paste(input$advanced_line_group, collapse = ", ")
+
+```
+
+<br>
+This creates a string showing which columns are being used for grouping (from input$advanced_line_group), joining them with commas.
+
+<br>
+### Build Title Elements
+
+
+```{r, eval=FALSE}
+
+# Examines length of string in input$chart_title and prepares the 'title_elements' object based on length of string
+title_elements <- c()                    # start with an empty vector
+for(col_name in input$chart_title) {     # loop thru each column name in 'chart_title'
+  if(col_name %in% names(data)) {        # if column name is within the names found in data frame
+    if(length(unique(data[[col_name]])) == 1) {     # if the string has length of one
+      title_elements <- c(title_elements, as.character(unique(data[[col_name]])))     # put that one name in the object 'title_elements'
+    } else if(length(unique(data[[col_name]])) <= 5) {     # or, if the length is < 5, put the names into the object 'title_elements'
+      values <- paste(unique(data[[col_name]]), collapse=", ")
+      title_elements <- c(title_elements, values)
+    } else {     # if there are more than 5 names, just pint 'x number of values'
+      n_values <- length(unique(data[[col_name]]))
+      title_elements <- c(title_elements, paste0(n_values, " Values"))
+    }
+  }
+}
+
+```
+
+<br>
+This code:
+
+* Starts with an empty vector named title_elements
+* Loops through each column selected in input$chart_title
+* Adds title content based on the data in each column:
+
+    - If there's only 1 unique value: uses that value
+    - If there are 2-5 unique values: lists all values separated by commas
+    - If there are more than 5 values: just shows the count (e.g., "10 Values")
+
+
+<br>
+### Create the Final Title Content object
+
+
+```{r, eval=FALSE}
+
+# Combine title elements if there is at least one value in the 'title_elements' string
+title_content <- if (length(title_elements) > 0) {
+  paste(title_elements, collapse = " - ")
+} else {
+  "Selected Data"
+}
+
+```
+
+<br>
+'title_content' now combines all collected title_elements, puts dashes between them, or uses "Selected Data" if nothing was collected.
+
+
+<br>
+### Format Title and Subtitle with HTML/CSS 
+
+The entire formatted Title Elements are now stored in 'title_content'.'  (the Subtitle does not use the contents of 'title_content'
+
+```{r, eval=FALSE}
+
+# Create the final title and subtitle
+title <- paste0(
+  "<span style='color:darkorchid1'>",
+  "Multi-Line Chart: ", 
+  title_content,
+  "</span>"
+)
+
+subtitle <- paste0(
+  "for Years ", input$year_range[1], " - ", input$year_range[2]
+  # " (Comparing by: ", groups_title, ")"
+)
+
+```
+
+
+* The title gets HTML styling with darkorchid1 color and includes the combined title elements
+* The subtitle shows the year range and what groups are being compared
+
+<br>
+
+### Apply Title and Subtitle to the Plot
+
+```{r, eval=FALSE}
+
+labs(
+  title = title,
+  subtitle = subtitle,
+  caption = paste(" Comparison by ", groups_title),
+  x = input$x_column,
+  y = input$y_column,
+  color = "Categories"  # Legend title
+)
+
+```
+
+<br>
+* The formatted strings are passed to the labs() function which sets them as the plot's title and subtitle.
+
+
+### Style the Title and Subtitle
+
+```{r, eval=FALSE}
+
+theme(
+  plot.title.position = "panel",
+  plot.title = ggtext::element_markdown(
+     color = "darkgreen",
+     size = rel(1.25),
+     face = "bold",
+     lineheight = 1.3,
+     margin = margin(0, 0, 0.25, 0, "lines")
+  ),
+  
+  plot.subtitle = ggtext::element_markdown(
+     color = "darkgreen",
+     size = rel(1.10),
+     face = "bold",
+     lineheight = 1.3,
+     margin = margin(0, 0, 0.5, 0, "lines")
+  ),
+ )
+
+```
+
+<br>
+This applies specific styling to the title and subtitle:
+
+* Uses element_markdown() to render HTML/CSS in the title
+* Sets both to dark green color
+* Makes the title 25% larger than base font
+* Makes the subtitle 10% larger than base font
+* Both are bold with specific line spacing and margins
+
+
+
+
+
+
+
+
+
+
