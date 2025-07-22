@@ -1,15 +1,31 @@
 ---
 title: "Basic ggplot types for testing data frames"
-author: "Dan Swart"
-date: "`r Sys.Date()`"
+subtitle: ""
+description: ""
+author: 
+  - name: "Dan Swart, CPA (ret)"
+    affiliations:
+      - "SCUC-ISD Board of Trustees"
+      - "Seat 6"
+date: today
+date-format: long
+# bibliography: manual-refs.bib
 format:
   html:
-    include-after-body: 
+    resources:
+      - reference-backlinks.js
+    include-after-body:    
       - text: |
-         <script type="text/javascript" src="reference-backlinks.js"></script>
-    css: 
+          # <script type="text/javascript" src="reference-backlinks.js"></script>
+    code-copy: true
+    code-link: true
+    include-in-header: header.html
+    css:
       - swart.css
-      # - this-doc-only.css
+      - tachyons.min.css
+      - r-colors.css
+    fontsize: 18pt
+    lightbox: true
     page-layout: full
     fig-width: 12
     fig-height: 10
@@ -19,6 +35,8 @@ format:
     toc: true
     citeproc: true
     link-citations: true
+    linestretch: 1.0
+    
   typst:
     fig-width: 12
     fig-height: 10
@@ -28,29 +46,118 @@ format:
       y: 1in
     toc: true
     fontsize: 14pt
-    mainfont: "Latin Modern Roman"
+    mainfont: "Cabin"
+    
+  revealjs:
+    slide-number: true
+    transition: fade
+    code-overflow: wrap
+    center: true
+    smaller: true
+    scrollable: true
+    chalkboard: true
+    multiplex: false
+    theme: solarized
+    reference-location: margin
+    logo: img/red-cross-640-435.png
+    footer: "Footer text"
+    code-block-height: 650px
+
+
+
+  # docx:
+  #   highlight-style: github
+  #   fig_caption: true
+
+
+
+editor: source
+
+quarto:
+  render:
+    cache-refresh: true
+
+
+# for .qmd filesd
 execute:
   echo: false
   message: false
   warning: false
+  eval: true
   fig-width: 12
   fig-height: 10
+
+
+# for .rmd files
+knitr:
+  opts_chunk:
+    echo: false
+    error: false
+    warning: false
+    message: false
+    cache: false
+
 ---
 
 ```{r}
 #| label: setup
+#| include: false
+
+# Prevent scientific notation globally
+options(scipen = 999)
 
 # load libraries
+library(readxl)
+library(writexl) 
+library(tidyr) 
+library(readr) 
+library(purrr) 
+library(stringr) 
+library(forcats) 
+library(lubridate) 
+library(janitor) 
+library(ggtext) 
+library(paletteer) 
+library(viridis) 
+library(RColorBrewer) 
+library(wesanderson) 
+library(dutchmasters) 
+library(gghighlight) 
+library(monochromeR) 
+library(ggforce) 
+library(ggthemes)
+library(gt)
+library(gtExtras)
 library(tidyverse)
+library(DT)
+library(plotly)
+library(ggplot2)
+library(kableExtra)
+library(tibble)
+library(patchwork)
+library(ppcor)
+library(ggdag)
+library(ggplot2)
+library(corrplot)
+library(ggcorrplot)
+library(car)
+library(WRS2)
+library(boot)
+library(BayesFactor)
+library(pwr)
+library(qgraph)
+library(scales)
+library(here)
+
 
 # Set global theme for consistent plots
-theme_set(theme_minimal(base_size = 16) + 
+theme_set(theme_minimal(base_size = 20) + 
           theme(
-    plot.title = element_text(face = "bold", size = 24),    # adjust title size
-    plot.subtitle = element_text(face = "bold", size = 20), # adjust subtitle size
-    axis.title.x = element_text(face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    axis.text.x = element_text(face = "bold", angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold", size = 26),    # adjust title size
+    plot.subtitle = element_text(face = "bold", size = 24), # adjust subtitle size
+    axis.title.x = element_text(face = "bold", size = 22),
+    axis.title.y = element_text(face = "bold", size = 22),
+    axis.text.x = element_text(face = "bold", size = 22, angle = 45, hjust = 1),
     legend.position = "bottom",
     strip.text = element_text(face = "bold"),
     panel.spacing.x = unit(1.5, "cm"),  # Horizontal spacing only
@@ -59,8 +166,9 @@ theme_set(theme_minimal(base_size = 16) +
     )
 )
 
+
 # Set seed for reproducibility
-set.seed(42)
+set.seed(123)
 
 ```
 
