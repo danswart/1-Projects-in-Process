@@ -131,60 +131,95 @@ options(tigris_use_cache = TRUE)
 
 # load libraries
 
-# library(ggplot2) # Create Elegant Data Visualizations Using the Grammar of Graphics
-# library(tibble) # Simple Data Frames
-# library(tidyr) # Tidy Messy Data
-# library(readr) # Read Rectangular Text Data
-# library(purrr) # Functional Programming Tools
-library(dplyr) # A Grammar of Data Manipulation - make pipe available
-# library(stringr) # Simple, Consistent Wrappers for Common String Operations
-# library(forcats) # Tools for Working with Categorical Variables (Factors)
-# library(lubridate) # Make Dealing with Dates a Little Easier
-# library(readxl) # Read Excel Files
-# library(writexl) # Export Data Frames to Excel 'xlsx' Format 
-# library(janitor) # Simple Tools for Examining and Cleaning Dirty Data 
-# library(ggtext) # Improved Text Rendering Support for 'ggplot2' 
-# library(paletteer) # Comprehensive Collection of Color Palettes 
-# library(viridis) # Colorblind-Friendly Color Maps for R 
-# library(RColorBrewer) # ColorBrewer Palettes 
-# library(wesanderson) # A Wes Anderson Palette Generator 
+# library(BayesFactor) # Computation of Bayes Factors for Common Designs
+# library(boot) # Bootstrap Functions
+# library(broom) # Convert Statistical Objects into Tidy Tibbles
+# library(camcorder) # Record Your Plot History
+# library(car) # Companion to Applied Regression
+# library(corrplot) # Visualization of a Correlation Matrix
+# library(cowplot) # Streamlined Plot Theme and Plot Annotations for 'ggplot2'
+# library(dagitty) # Graphical Analysis of Structural Causal Models  
+# library(DiagrammeR) # Graph/Network Visualization 
+# library(dlookr) # Tools for Data Diagnosis, Exploration, Transformation       
+library(dplyr)
+# library(DT) # A Wrapper of the JavaScript Library 'DataTables'
 # library(dutchmasters) # Color Palettes based on Famous Paintings 
-# library(gghighlight) # Highlight Lines and Points in 'ggplot2' 
-# library(monochromeR) # Easily Create, View and Use Monochrome Color Palettes 
+# library(flexdashboard) # R Markdown Format for Flexible Dashboards
+# library(flextable) # Functions for Tabular Reporting  
+# library(forcats) # Tools for Working with Categorical Variables (Factors)
+# library(gganimate) # A Grammar of Animated Graphics
+# library(ggcorrplot) # Visualization of a Correlation Matrix using 'ggplot2'
+# library(ggdag) # Analyze and Create Elegant Directed Acyclic Graphs      
 # library(ggforce) # Accelerating 'ggplot2' 
+# library(gghighlight) # Highlight Lines and Points in 'ggplot2' 
+# library(ggplot2) # Create Elegant Data Visualizations Using the Grammar of Graphics
+# library(ggokabeito) # 'Okabe-Ito' Scales for 'ggplot2' and 'ggraph'
+# library(ggpubr) # 'ggplot2' Based Publication Ready Plots
+# library(ggrepel) # Automatically Position Non-Overlapping Text Labels with 'ggplot2'
+# library(ggtext) # Improved Text Rendering Support for 'ggplot2' 
 # library(ggthemes) # Extra Themes, Scales and Geoms for 'ggplot2'
+# library(glue) # Interpreted String Literals    
+# library(grid) # The Grid Graphics Package
 # library(gt) # Easily Create Presentation-Ready Display Tables
 # library(gtExtras) # Extending 'gt' for Beautiful HTML Tables
-# library(plotly) # Create Interactive Web Graphics via 'plotly.js'
+# library(haven) # Import and Export 'SPSS', 'Stata' and 'SAS' Files
+# library(here) # A Simpler Way to Find Your Files
+# library(htmltools) # Tools for HTML
+# library(htmlwidgets) # HTML Widgets for R
+# library(janitor) # Simple Tools for Examining and Cleaning Dirty Data 
+# library(kableExtra) # Construct Complex Table with 'kable' and Pipe Syntax
+# library(knitr) # A General-Purpose Package for Dynamic Report Generation in R   
+# library(lavaan) # Latent Variable Analysis     
+# library(lubridate) # Make Dealing with Dates a Little Easier
+# library(monochromeR) # Easily Create, View and Use Monochrome Color Palettes 
+# library(paletteer) # Comprehensive Collection of Color Palettes 
 # library(patchwork) # The Composer of Plots
+# library(plotly) # Create Interactive Web Graphics via 'plotly.js'
 # library(ppcor) # Partial and Semi-Partial (Part) Correlation
-# library(ggplot2) # Create Elegant Data Visualizations Using the Grammar of Graphics
-# library(corrplot) # Visualization of a Correlation Matrix
-# library(ggcorrplot) # Visualization of a Correlation Matrix using 'ggplot2'
-# library(car) # Companion to Applied Regression
-# library(WRS2) # A Collection of Robust Statistical Methods
-# library(boot) # Bootstrap Functions
-# library(BayesFactor) # Computation of Bayes Factors for Common Designs
+# library(prettycode) # Pretty Print R Code in the Terminal
+# library(purrr) # Functional Programming Tools
 # library(pwr) # Basic Functions for Power Analysis
 # library(qgraph) # Graph Plotting Methods, Psychometric Data Visualization and Graphical Model Estimation
-# library(scales) # Scale Functions for Visualization
-# library(here) # A Simpler Way to Find Your Files
-# library(ggdag) # Analyze and Create Elegant Directed Acyclic Graphs      
-# library(dagitty) # Graphical Analysis of Structural Causal Models    
-# library(DiagrammeR) # Graph/Network Visualization 
-# library(knitr) # A General-Purpose Package for Dynamic Report Generation in R     
-# library(kableExtra) # Construct Complex Table with 'kable' and Pipe Syntax
-# library(flextable) # Functions for Tabular Reporting  
-# library(lavaan) # Latent Variable Analysis     
-# library(ggpubr) # 'ggplot2' Based Publication Ready Plots
+# library(qicharts2) # Quality Improvement Charts
+# library(RColorBrewer) # ColorBrewer Palettes 
+# library(readr) # Read Rectangular Text Data
+# library(readxl) # Read Excel Files
 # library(rethinking) # Statistical Rethinking book package
-# library(broom) # Convert Statistical Objects into Tidy Tibbles
+# library(rlang) # Functions for Base Types and Core R and 'Tidyverse' Features
+# library(scales) # Scale Functions for Visualization
+# library(shiny) # Web Application Framework for R
+# library(shinyobjects) # Access Reactive Data Interactively   
+# library(skimr) # Compact and Flexible Summaries of Data
+# library(stringr) # Simple, Consistent Wrappers for Common String Operations
+# library(tibble) # Simple Data Frames
 # library(tidycensus) # Load US Census Boundary and Attribute Data as 'tidyverse' and 'sf'-Ready Data Frames
-# library(ggokabeito)
+# library(tidylog) # Logging for 'dplyr' and 'tidyr' Functions
+# library(tidyr) # Tidy Messy Data
+# library(tidytext) # Text Mining using 'dplyr', 'ggplot2', and Other Tidy Tools 
+# library(tsibble) # Tidy Temporal Data Frames and Tools        
+# library(viridis) # Colorblind-Friendly Color Maps for R 
+# library(visdat) # Preliminary Visualization of Data
+# library(vroom) # Read and Write Rectangular Text Data Quickly    
+# library(wesanderson) # A Wes Anderson Palette Generator 
+# library(writexl) # Export Data Frames to Excel 'xlsx' Format 
+# library(WRS2) # A Collection of Robust Statistical Methods
+
+
 
 # Force dplyr's select to take precedence
 select <- dplyr::select
 filter <- dplyr::filter
+
+# Options
+options(scipen = 999)
+options(qic.clshade = T) # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(qic.linecol = 'black') # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(qic.signalcol = "red") # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(qic.targetcol = "purple") # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
+options(DT.options = list(dom = 'pBlfrti')) # Add buttons, filtering, and top (t) pagination controls
+options(shiny.maxRequestSize = 50 * 1024^2) # Set upload maximum to 50 MB
+options(tigris_use_cache = TRUE)
+
 
 # Set global theme for consistent plots
 ggplot2::theme_set(ggplot2::theme_minimal(base_size = 20) + 

@@ -8,7 +8,7 @@
 # library(skimr)
 # library(visdat)
 # library(gghighlight)
-# library(dplyr)
+library(dplyr)
 # library(stringr)
 # library(ggtext)
 # library(gganimate)
@@ -49,9 +49,34 @@ options(qic.signalcol = "red") # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPL
 options(qic.targetcol = "purple") # NO LONGER NEEDED; CHARTS ALL PREPARED WITH GGPLOT2 ONLY
 options(DT.options = list(dom = 'pBlfrti')) # Add buttons, filtering, and top (t) pagination controls
 options(shiny.maxRequestSize = 50 * 1024^2) # Set upload maximum to 50 MB
+options(tigris_use_cache = TRUE)
+
+
+# Set global theme for consistent plots
 ggplot2::theme_set(
-  ggplot2::theme_gray(base_size = 26)
+  ggplot2::theme_minimal(base_size = 20) +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 26),
+      plot.subtitle = ggplot2::element_text(face = "bold", size = 24),
+      axis.title.x = ggplot2::element_text(face = "bold", size = 22),
+      axis.title.y = ggplot2::element_text(face = "bold", size = 22),
+      axis.text.x = ggplot2::element_text(
+        face = "bold",
+        size = 22,
+        angle = 45,
+        hjust = 1
+      ),
+      legend.position = "bottom",
+      strip.text = ggplot2::element_text(face = "bold"),
+      panel.spacing.x = grid::unit(1.5, "cm"),
+      panel.spacing.y = grid::unit(1.5, "cm"),
+      plot.margin = ggplot2::margin(20, 20, 20, 20, "pt")
+    )
 )
+
+
+# Set seed for reproducibility
+set.seed(123)
 
 
 ########  IF NEEDED, CONVERT AN UPDATED VERSION OF THE CSV FILE IN WIDE FORMAT TO LONG FORMAT ##########
@@ -77,39 +102,55 @@ ggplot2::theme_set(
 ## Write the long-format data to a new CSV file - RENAME TO PREVIOUS FILENAME AFTER TESTING
 #readr::write_csv(data_long, "SCUC Snapshots 1995 to 2023-LONG-NEW.csv")
 #
-## # Load the data by path
-#df1 <- vroom::vroom(
-#  file = here::here(
-#    "data",
-#    "20250318 staar_performance_district_level_grades_3_to_8_2018_2024_merged_cleaned_long.csv"
-#  )
-#)
-#
-#
-## Load data locally, if needed
-## df1 <- vroom::vroom(file = here::here("SCUC Snapshots 1995 to 2023-LONG.csv"))
-#
+########################################################
+
+#####  BEGIN HERE  #####
+
+# # Load the data by path
+df1 <- vroom::vroom(
+  file = here::here(
+    "data",
+    "20250318 staar_performance_district_level_grades_3_to_8_2018_2024_merged_cleaned_long.csv"
+  )
+)
+
+
+# Load data locally, if needed
+# df1 <- vroom::vroom(file = here::here("SCUC Snapshots 1995 to 2023-LONG.csv"))
+
+# Add column to make sorting easier
+df1 <- df1 %>%
+  mutate(
+    level = case_when(
+      group %in% c("state", "region20", "district") ~ "aggregate",
+      TRUE ~ "demographic"
+    )
+  )
 
 ##### Control chart calculations
 
-## Filter the data frame for control limits calc
-#df1_control_limits <- df1 %>%
-# dplyr::filter(grouping == "Asian",
-#        section == "Standardized_Scores",
-#        level_achieved == "Approaches_or_Above",
-#        dplyr::between(year, 2010, 2016)
-#        )
-
-# Filter the data frame based on the conditions
+# Filter the data frame for control limits calc
 df1_control_limits <- df1 %>%
-  dplyr::filter(
+  filter(
+    level == "demographic",
+    group == "asian",
     grade_level_name == "Grade 3",
-    group == "district",
     staar_grouping == "Approaches or Above",
-    dplyr::between(year, 2018, 2024)
-  ) # %>%
-# rename(value1 = value) %>%
-# dplyr::mutate(value = 100 - value1)
+    subject == "Mathematics",
+    between(year, 2018, 2024)
+  )
+
+
+## Filter the data frame based on the conditions
+#df1_control_limits <- df1 %>%
+#  dplyr::filter(
+#    grade_level_name == "Grade 3",
+#    group == "district",
+#    staar_grouping == "Approaches or Above",
+#    dplyr::between(year, 2018, 2024)
+#  ) # %>%
+## rename(value1 = value) %>%
+## dplyr::mutate(value = 100 - value1)
 
 #####  CALCULATE UNTRENDED CL, SD AND CONTROL LIMITS BASED ON CONTROL LIMITS DATA FRAME #####
 
@@ -127,23 +168,17 @@ emp_ucl <<- emp_cl + (3 * emp_sd) # Calculate empirical upper control limit
 
 #####  FILTER TO INCLUDED ONLY DISIRED ROWS TO INCLUDE IN UNTRENDED I-CHART  ##########
 
-# Filter the data frame based on the desired control chart rows
-# df1_modified <- df1 %>%
-#   dplyr::filter(grouping == "Asian",
-#          section == "Standardized_Scores",
-#          level_achieved == "Approaches_or_Above",
-#          dplyr::between(year, 2012, 2023)
-#          )  # Efficient range filtering)
-
-# Filter the data frame based on the conditions
+# Filter the data frame based on specifications
 df1_modified <- df1 %>%
-  dplyr::filter(
+  filter(
+    level == "demographic",
+    group == "asian",
     grade_level_name == "Grade 3",
-    group == "district",
-    subject == "Mathematics",
     staar_grouping == "Approaches or Above",
-    dplyr::between(year, 2018, 2024)
-  ) # %>%
+    subject == "Mathematics",
+    between(year, 2018, 2024)
+  )
+
 # rename(value1 = value) %>%
 # dplyr::mutate(value = 100 - value1)
 
@@ -194,6 +229,9 @@ desired_years = unique(df1_modified$year)
 # Create char vector of unique entries in 'group' column
 desired_groups = unique(df1_modified$group)
 
+# Create char vector of unique entries in 'group_display' column
+desired_group_display = unique(df1_modified$group_display)
+
 # Create char vector of unique entries in 'grade_level' column
 desired_grade_levels <- unique(df1_modified$grade_level_name)
 
@@ -232,9 +270,12 @@ y_pos <- max(df1_modified$value, na.rm = TRUE) # Ensure NA handling
 
 # Create dynamic title and subtitle
 i_title <- paste0(
-  "Individuals Chart:  % of Students in ",
+  "Individuals Chart:  % of  ",
+  desired_group_display,
+  " Students in ",
+  "\n",
   desired_subjects,
-  "who achieved ",
+  " who achieved ",
   desired_achieve_levels
 )
 
