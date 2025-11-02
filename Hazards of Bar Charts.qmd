@@ -1,0 +1,325 @@
+---
+title: "Basic ggplot types for testing data frames"
+subtitle: ""
+description: ""
+author: 
+  - name: "Dan Swart, CPA (ret)"
+    affiliations:
+      - "SCUC-ISD Board of Trustees"
+      - "Seat 6"
+date: today
+date-format: long
+# bibliography: manual-refs.bib
+format:
+  html:
+    resources:
+      - reference-backlinks.js
+    include-after-body:    
+      - text: |
+          # <script type="text/javascript" src="reference-backlinks.js"></script>
+    default: true         
+    code-copy: true
+    code-link: true        # This adds individual buttons
+    code-fold: true        # Hide code by default, show on click
+    code-summary: "Show the code"
+    code-overflow: wrap
+    code-block-bg: "#FAEBD7"
+    code-block-border-left: "#31BAE9"
+    embed-resources: true
+    include-in-header: header.html
+    css:
+      - swart.css
+      - tachyons.min.css
+      - r-colors.css
+    fontsize: 18pt
+    lightbox: true
+    page-layout: full
+    fig-width: 12
+    fig-height: 10
+    fig-dpi: 300
+    html-math-method: katex
+    df-print: paged
+    toc: true
+    toc-float: true
+    citeproc: true
+    link-citations: true
+    linestretch: 1.0
+    
+    
+    
+  typst:
+    fig-width: 12
+    fig-height: 10
+    fig-dpi: 300
+    margin:
+      x: 1in
+      y: 1in
+    toc: true
+    fontsize: 14pt
+    mainfont: "Cabin"
+    
+  revealjs:
+    slide-number: true
+    transition: fade
+    code-overflow: wrap
+    center: true
+    smaller: true
+    scrollable: true
+    chalkboard: true
+    multiplex: false
+    theme: solarized
+    reference-location: margin
+    logo: img/red-cross-640-435.png
+    footer: "Footer text"
+    code-block-height: 650px
+
+
+
+  # docx:
+  #   highlight-style: github
+  #   fig_caption: true
+
+
+
+editor: source
+
+quarto:
+  render:
+    cache-refresh: true
+
+
+# for .qmd filesd
+execute:
+  echo: false
+  message: false
+  warning: false
+  eval: true
+  fig-width: 12
+  fig-height: 10
+
+
+# for .rmd files
+knitr:
+  opts_chunk:
+    echo: false
+    error: false
+    warning: false
+    message: false
+    cache: false
+
+---
+
+
+```{r}
+#| label: setup
+#| include: false
+# R version 4.4.3 (2025-02-28)
+# Platform: x86_64-apple-darwin20
+# Running under: macOS Sequoia 15.6.1
+# Rstudio 2025.9.2.418 (Cucumberleaf Sunflower)
+# 
+
+# Prevent scientific notation globally
+options(scipen = 999)
+options(device = "quartz")  # macOS native graphics device
+options(tigris_use_cache = TRUE)
+
+# install.packages(c("mapview", "survey", "srvyr", "arcgislayers"))
+
+# census_api_key("95496766c51541ee6f402c1e1a8658581285b759", install = TRUE, overwrite = TRUE)
+
+
+# load libraries
+
+# library(ggplot2) # Create Elegant Data Visualizations Using the Grammar of Graphics
+# library(tibble) # Simple Data Frames
+# library(tidyr) # Tidy Messy Data
+# library(readr) # Read Rectangular Text Data
+# library(purrr) # Functional Programming Tools
+library(dplyr) # A Grammar of Data Manipulation - make pipe available
+# library(stringr) # Simple, Consistent Wrappers for Common String Operations
+# library(forcats) # Tools for Working with Categorical Variables (Factors)
+# library(lubridate) # Make Dealing with Dates a Little Easier
+# library(readxl) # Read Excel Files
+# library(writexl) # Export Data Frames to Excel 'xlsx' Format 
+# library(janitor) # Simple Tools for Examining and Cleaning Dirty Data 
+# library(ggtext) # Improved Text Rendering Support for 'ggplot2' 
+# library(paletteer) # Comprehensive Collection of Color Palettes 
+# library(viridis) # Colorblind-Friendly Color Maps for R 
+# library(RColorBrewer) # ColorBrewer Palettes 
+# library(wesanderson) # A Wes Anderson Palette Generator 
+# library(dutchmasters) # Color Palettes based on Famous Paintings 
+# library(gghighlight) # Highlight Lines and Points in 'ggplot2' 
+# library(monochromeR) # Easily Create, View and Use Monochrome Color Palettes 
+# library(ggforce) # Accelerating 'ggplot2' 
+# library(ggthemes) # Extra Themes, Scales and Geoms for 'ggplot2'
+# library(gt) # Easily Create Presentation-Ready Display Tables
+# library(gtExtras) # Extending 'gt' for Beautiful HTML Tables
+# library(plotly) # Create Interactive Web Graphics via 'plotly.js'
+# library(patchwork) # The Composer of Plots
+# library(ppcor) # Partial and Semi-Partial (Part) Correlation
+# library(ggplot2) # Create Elegant Data Visualizations Using the Grammar of Graphics
+# library(corrplot) # Visualization of a Correlation Matrix
+# library(ggcorrplot) # Visualization of a Correlation Matrix using 'ggplot2'
+# library(car) # Companion to Applied Regression
+# library(WRS2) # A Collection of Robust Statistical Methods
+# library(boot) # Bootstrap Functions
+# library(BayesFactor) # Computation of Bayes Factors for Common Designs
+# library(pwr) # Basic Functions for Power Analysis
+# library(qgraph) # Graph Plotting Methods, Psychometric Data Visualization and Graphical Model Estimation
+# library(scales) # Scale Functions for Visualization
+# library(here) # A Simpler Way to Find Your Files
+# library(ggdag) # Analyze and Create Elegant Directed Acyclic Graphs      
+# library(dagitty) # Graphical Analysis of Structural Causal Models    
+# library(DiagrammeR) # Graph/Network Visualization 
+# library(knitr) # A General-Purpose Package for Dynamic Report Generation in R     
+# library(kableExtra) # Construct Complex Table with 'kable' and Pipe Syntax
+# library(flextable) # Functions for Tabular Reporting  
+# library(lavaan) # Latent Variable Analysis     
+# library(ggpubr) # 'ggplot2' Based Publication Ready Plots
+# library(rethinking) # Statistical Rethinking book package
+# library(broom) # Convert Statistical Objects into Tidy Tibbles
+# library(tidycensus) # Load US Census Boundary and Attribute Data as 'tidyverse' and 'sf'-Ready Data Frames
+# library(ggokabeito)
+
+# Force dplyr's select to take precedence
+select <- dplyr::select
+filter <- dplyr::filter
+
+# Set global theme for consistent plots
+ggplot2::theme_set(ggplot2::theme_minimal(base_size = 20) + 
+                   ggplot2::theme(plot.title = ggplot2::element_text(face = "bold",
+                                                                      size = 26),
+                                  plot.subtitle = ggplot2::element_text(face = "bold",
+                                                                         size = 24),
+                                  axis.title.x = ggplot2::element_text(face = "bold",
+                                                                        size = 22),
+                                  axis.title.y = ggplot2::element_text(face = "bold",
+                                                                        size = 22),
+                                  axis.text.x = ggplot2::element_text(face = "bold",
+                                                                       size = 22,
+                                                                       angle = 45,
+                                                                       hjust = 1),
+                                  legend.position = "bottom",
+                                  strip.text = ggplot2::element_text(face = "bold"),
+                                  panel.spacing.x = grid::unit(1.5,
+                                                                "cm"),
+                                  panel.spacing.y = grid::unit(1.5,
+                                                                "cm"),
+                                  plot.margin = ggplot2::margin(20,
+                                                                 20,
+                                                                 20,
+                                                                 20,
+                                                                 "pt")))
+
+
+# Set seed for reproducibility
+set.seed(123)
+
+```
+
+---
+
+
+```{r}
+
+# data <- read_csv(here("data", "test_survey_data_export.csv"))
+
+data <- readr::read_csv(here::here("data", "20250323 cleaned_SCUC_Teacher-Student Relationships Surveys-WIDE.csv"))
+
+# Order the 'survey_period' factor based on the 'x' numerical column
+data$survey_period <- factor(data$survey_period, levels = data$survey_period[order(data$x)])
+
+# Pivot the data longer
+data_long <- data %>%
+  tidyr::pivot_longer(cols = c(sense_of_belonging, percent_favorable), 
+               names_to = "survey_type", 
+               values_to = "value")
+
+
+ggplot2::ggplot(data_long, 
+       ggplot2::aes(x = survey_period,
+           y = value,
+           group = survey_type,
+           color = survey_type
+           )
+       ) +
+  
+  ggplot2::geom_line(linewidth = 2,
+            color = 'grey'
+            ) +
+  
+  ggplot2::geom_point(ggplot2::aes(fill = survey_type),
+             size = 5
+             ) +
+  
+
+  
+  ggplot2::scale_color_manual(values = c('#0072B2', '#D55E00', '#009E73', "#CC79A7")) +
+                    #  "#E69F00" "#0072B2"  "#D55E00"  "#009E73"  "#CC79A7" "#F0E442" "#999999" "#000000" "#56B4E9" )
+
+  ggplot2::scale_x_discrete(breaks = unique(data$survey_period)) +  # Use unique values from the x column
+
+  ggplot2::labs(title = "Exploratory Line Plot with Rotated X-axis Labels"
+       )
+
+
+
+
+```
+
+
+```{r}
+#| label: column-chart
+
+
+# data <- read_csv(here("data", "test_survey_data_export.csv"))
+
+data <- readr::read_csv(here::here("data", "20250323 cleaned_SCUC_Teacher-Student Relationships Surveys-WIDE.csv"))
+
+
+# Order the 'survey_period' factor based on the 'x' numerical column
+data$survey_period <- factor(data$survey_period, levels = data$survey_period[order(data$x)])
+
+# Pivot the data longer
+data_long <- data %>%
+  tidyr::pivot_longer(cols = c(sense_of_belonging, percent_favorable), 
+               names_to = "survey_type", 
+               values_to = "value")
+
+
+ggplot2::ggplot(data_long, 
+       ggplot2::aes(x = survey_period,
+           y = value,
+           fill = survey_type,
+           group = survey_type
+           )
+       ) +
+  
+  ggplot2::geom_col(position = "dodge",
+           width = 0.7,
+           color = 'white'
+            ) +
+  
+  
+  ggplot2::scale_fill_manual(values = c('#0072B2', '#D55E00', '#009E73', "#CC79A7")) +
+                    #  "#E69F00" "#0072B2"  "#D55E00"  "#009E73"  "#CC79A7" "#F0E442" "#999999" "#000000" "#56B4E9" )
+  
+  ggplot2::scale_x_discrete(breaks = unique(data$survey_period)) +  # Use unique values from the x column
+
+  ggplot2::labs(title = "Exploratory Column Plot with Rotated X-axis Labels"
+       )
+
+
+
+```
+
+
+```{r}
+
+# write.csv(data_long, "data/20250323 cleaned_SCUC_Teacher-Student Relationships Surveys-LONG.csv", row.names = FALSE)
+
+
+
+```
+
