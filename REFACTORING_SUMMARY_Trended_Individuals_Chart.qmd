@@ -1,0 +1,547 @@
+# REFACTORING SUMMARY: Namespace Syntax Conversion
+## File: 1-Standalone-WORKS-Trended_Individuals_Chart-Red_Dots_on_ALL_Rule_Violations.R
+
+---
+
+## OVERVIEW
+This document summarizes the line-by-line refactoring of the R script to use explicit namespace syntax (package::function format) instead of library() calls. ALL functions have been namespaced, including base R and stats package functions.
+
+---
+
+## MAJOR CHANGES
+
+### 1. LIBRARY CALLS REMOVED
+
+**Line 19: Active library call**
+- Original: `library(dplyr)`
+- Refactored: Commented out → `# library(dplyr)`
+
+All other library() calls (lines 9-80) were already commented out - no changes needed.
+
+### 2. PIPE OPERATOR STATUS
+
+**No magrittr pipes (%>%) found in this file**
+- This script does not use any pipe operators
+- No pipe replacements were necessary
+- All data transformations use base R subsetting and assignment operators
+
+### 3. FUNCTIONS ALREADY USING NAMESPACE SYNTAX (unchanged)
+
+**Lines 83-84: Function assignments (already namespaced)**
+- `select <- dplyr::select`
+- `filter <- dplyr::filter`
+
+**Lines 98-117: ggplot2 theme setup (already namespaced)**
+- All ggplot2:: and grid:: functions were already properly namespaced
+
+**Lines 132, 140, 145, 148, 167: stats functions (already namespaced)**
+- `stats::rnorm()`
+- `stats::lm()`
+- `stats::sd()`, `stats::residuals()`
+- `stats::predict()`
+- `stats::qbinom()`
+
+**Lines 173-222: ggplot2 visualization (already namespaced)**
+- All ggplot2:: functions were already properly namespaced
+
+---
+
+## DETAILED FUNCTION NAMESPACING BY LINE
+
+### OPTIONS CONFIGURATION (Lines 87-94)
+
+**Line 87: Scientific notation option**
+- Original: `options(scipen = 999)`
+- Refactored: `base::options(scipen = 999)`
+- Package: base
+
+**Line 88: QIC option**
+- Original: `options(qic.clshade = T)`
+- Refactored: `base::options(qic.clshade = T)`
+- Package: base
+
+**Line 89: QIC line color option**
+- Original: `options(qic.linecol = 'black')`
+- Refactored: `base::options(qic.linecol = 'black')`
+- Package: base
+
+**Line 90: QIC signal color option**
+- Original: `options(qic.signalcol = "red")`
+- Refactored: `base::options(qic.signalcol = "red")`
+- Package: base
+
+**Line 91: QIC target color option**
+- Original: `options(qic.targetcol = "purple")`
+- Refactored: `base::options(qic.targetcol = "purple")`
+- Package: base
+
+**Line 92: DT options with list**
+- Original: `options(DT.options = list(dom = 'pBlfrti'))`
+- Refactored: `base::options(DT.options = base::list(dom = 'pBlfrti'))`
+- Package: base
+- Functions: options(), list()
+
+**Line 93: Shiny max request size option**
+- Original: `options(shiny.maxRequestSize = 50 * 1024^2)`
+- Refactored: `base::options(shiny.maxRequestSize = 50 * 1024^2)`
+- Package: base
+
+**Line 94: Tigris cache option**
+- Original: `options(tigris_use_cache = TRUE)`
+- Refactored: `base::options(tigris_use_cache = TRUE)`
+- Package: base
+
+---
+
+### RANDOM SEED SETTING (Lines 121, 129)
+
+**Line 121: First seed setting**
+- Original: `set.seed(123)`
+- Refactored: `base::set.seed(123)`
+- Package: base
+
+**Line 129: Second seed setting**
+- Original: `set.seed(123)`
+- Refactored: `base::set.seed(123)`
+- Package: base
+
+---
+
+### DATA GENERATION (Lines 130-133)
+
+**Line 130: Variable assignment**
+- `n <- 30`
+- No function calls
+
+**Line 131: Sequence generation**
+- `x <- 1:n`
+- Uses `:` operator (doesn't require namespacing)
+
+**Line 132: Random normal generation (already namespaced)**
+- Original: `y <- 10 + 0.5 * x + stats::rnorm(n, mean = 0, sd = 1)`
+- No changes needed (already has stats::)
+
+**Line 133: Data frame creation**
+- Original: `data <- data.frame(x = x, y = y)`
+- Refactored: `data <- base::data.frame(x = x, y = y)`
+- Package: base
+
+---
+
+### LINEAR MODEL FITTING (Lines 140-142)
+
+**Line 140: Linear model (already namespaced)**
+- Original: `model <- stats::lm(y ~ x, data = data)`
+- No changes needed (already has stats::)
+
+**Line 142: Model summary**
+- Original: `model_summary <- summary(model)`
+- Refactored: `model_summary <- base::summary(model)`
+- Package: base
+- Note: summary() is a generic function from base package
+
+---
+
+### STANDARD DEVIATION CALCULATION (Line 145)
+
+**Line 145: Residuals standard deviation (already namespaced)**
+- Original: `residuals_sd <- stats::sd(stats::residuals(model))`
+- No changes needed (already has stats::)
+
+---
+
+### CONTROL LIMITS CALCULATION (Lines 148-150)
+
+**Line 148: Centerline prediction (already namespaced)**
+- Original: `data$centerline <- stats::predict(model, newdata = data)`
+- No changes needed (already has stats::)
+
+**Lines 149-150: UCL and LCL calculations**
+- `data$ucl <- data$centerline + 3 * (residuals_sd / 1.128)`
+- `data$lcl <- data$centerline - 3 * (residuals_sd / 1.128)`
+- No function calls (arithmetic operations only)
+
+---
+
+### SHEWHART RULE #1 (Line 153)
+
+**Line 153: Sigma signals**
+- `sigma.signals <- y < data$lcl | y > data$ucl`
+- No function calls (logical operators only)
+
+---
+
+### RUNS ANALYSIS (Lines 158-167)
+
+**Line 158: Sign calculation**
+- Original: `runs <- sign(y - data$centerline)`
+- Refactored: `runs <- base::sign(y - data$centerline)`
+- Package: base
+
+**Line 159: Subsetting**
+- `runs <- runs[runs != 0]`
+- No function calls (subsetting operator only)
+
+**Line 160: Run length encoding**
+- Original: `runs <- rle(runs)$lengths`
+- Refactored: `runs <- base::rle(runs)$lengths`
+- Package: base
+
+**Line 161: Sum of runs**
+- Original: `n.obs <- sum(runs)`
+- Refactored: `n.obs <- base::sum(runs)`
+- Package: base
+
+**Line 162: Maximum run length**
+- Original: `longest.run <- max(runs, na.rm = TRUE)`
+- Refactored: `longest.run <- base::max(runs, na.rm = TRUE)`
+- Package: base
+
+**Line 163: Length of runs**
+- Original: `n.runs <- length(runs)`
+- Refactored: `n.runs <- base::length(runs)`
+- Package: base
+
+**Line 164: Crossings calculation**
+- `n.crossings <- n.runs - 1`
+- No function calls (arithmetic operation only)
+
+**Line 166: Maximum run threshold**
+- Original: `longest.run.max <- round(log2(n.obs) + 3)`
+- Refactored: `longest.run.max <- base::round(base::log2(n.obs) + 3)`
+- Package: base
+- Functions: round(), log2()
+
+**Line 167: Minimum crossings threshold (already namespaced)**
+- Original: `n.crossings.min <- stats::qbinom(.05, n.obs - 1, 0.5)`
+- No changes needed (already has stats::)
+
+**Line 169: Runs signal**
+- `runs.signal <- longest.run > longest.run.max | n.crossings < n.crossings.min`
+- No function calls (logical operators only)
+
+---
+
+### GGPLOT2 VISUALIZATION (Lines 173-222)
+
+All ggplot2 functions were already properly namespaced - no changes needed:
+
+**Line 173: Initialize plot**
+- `ggplot2::ggplot(data, ggplot2::aes(x = x, y = y))`
+
+**Line 176: Line layer**
+- `ggplot2::geom_line()`
+
+**Lines 179-184: Centerline with conditional linetype**
+- `ggplot2::geom_line(ggplot2::aes(y = centerline), ...)`
+
+**Lines 186-191: Upper control limit**
+- `ggplot2::geom_line(ggplot2::aes(y = ucl), ...)`
+
+**Lines 193-198: Lower control limit**
+- `ggplot2::geom_line(ggplot2::aes(y = lcl), ...)`
+
+**Lines 208-213: Points with conditional color**
+- `ggplot2::geom_point(ggplot2::aes(x = x, y = y), ...)`
+
+**Lines 216-222: Labels**
+- `ggplot2::labs(title = ..., subtitle = ..., caption = ..., x = ..., y = ...)`
+
+---
+
+## TOTAL FUNCTION CALLS NAMESPACED
+
+### By Package:
+
+**base package: 17 function calls**
+1. options() - Line 87
+2. options() - Line 88
+3. options() - Line 89
+4. options() - Line 90
+5. options() - Line 91
+6. options() - Line 92 (first instance)
+7. list() - Line 92
+8. options() - Line 93
+9. options() - Line 94
+10. set.seed() - Line 121
+11. set.seed() - Line 129
+12. data.frame() - Line 133
+13. summary() - Line 142
+14. sign() - Line 158
+15. rle() - Line 160
+16. sum() - Line 161
+17. max() - Line 162
+18. length() - Line 163
+19. round() - Line 166
+20. log2() - Line 166
+
+**stats package (already namespaced): 6 function calls**
+1. rnorm() - Line 132
+2. lm() - Line 140
+3. sd() - Line 145
+4. residuals() - Line 145
+5. predict() - Line 148
+6. qbinom() - Line 167
+
+**ggplot2 package (already namespaced): 12 function calls**
+1. theme_set() - Line 98
+2. theme_minimal() - Line 99
+3. theme() - Line 100
+4. element_text() - Lines 101, 102, 103, 104, 105, 112
+5. ggplot() - Line 173
+6. aes() - Lines 173, 180, 187, 194, 209
+7. geom_line() - Lines 176, 179, 186, 193
+8. geom_point() - Line 208
+9. labs() - Line 216
+10. margin() - Line 115
+
+**grid package (already namespaced): 2 function calls**
+1. unit() - Line 113
+2. unit() - Line 114
+
+**dplyr package (already namespaced): 2 assignments**
+- select - Line 83
+- filter - Line 84
+
+### Grand Total: 39 function calls
+- **New Namespacings:** 20 function calls
+- **Already Namespaced:** 22 function calls (no changes needed)
+- **Pipe Replacements:** 0 (no pipes in this file)
+
+---
+
+## FUNCTIONS THAT DO NOT REQUIRE NAMESPACING
+
+The following operators and language constructs do not require namespace prefixes:
+- Arithmetic operators: +, -, *, /, ^
+- Comparison operators: <, >, <=, >=, ==, !=
+- Logical operators: &, |, !
+- Assignment operators: <-, =
+- Subsetting operators: $, [, [[
+- Sequence operator: :
+- Formula operator: ~
+- Comments: #
+
+---
+
+## STATISTICAL CONTROL CHART METHODOLOGY
+
+### Linear Regression Model
+- Fits trend line using `stats::lm(y ~ x)`
+- Extracts residuals using `stats::residuals()`
+- Calculates standard deviation of residuals using `stats::sd()`
+
+### Control Limits Calculation
+- **Centerline:** Predicted values from linear model (`stats::predict()`)
+- **UCL/LCL:** Centerline ± 3σ, where σ = residuals_sd / 1.128
+- **Constant 1.128:** Adjustment factor for moving range in individuals charts
+
+### Shewhart Rule #1 Detection
+- Identifies points outside control limits
+- Creates logical vector `sigma.signals`
+- Used to color points red (value = 2) or black (value = 1)
+
+### Anhoej Run Rules Detection
+
+**Runs Analysis:**
+1. Calculate signs of deviations from centerline (`base::sign()`)
+2. Remove zero values
+3. Compute run lengths (`base::rle()`)
+4. Count total observations (`base::sum()`)
+5. Find longest run (`base::max()`)
+6. Count number of runs (`base::length()`)
+
+**Critical Values:**
+- **Longest run threshold:** `base::round(base::log2(n.obs) + 3)`
+- **Minimum crossings:** `stats::qbinom(0.05, n.obs - 1, 0.5)`
+
+**Signal Detection:**
+- Unusually long run: `longest.run > longest.run.max`
+- Unusually few crossings: `n.crossings < n.crossings.min`
+- Combined: `runs.signal` logical vector
+
+---
+
+## VISUALIZATION FEATURES
+
+### Centerline Styling
+- **Color:** Royal blue
+- **Linetype:** Conditional based on runs.signal
+  - Solid (value 1) when no run rule violations
+  - Dashed (value 2) when run rule violations detected
+- **Linewidth:** 2
+
+### Control Limits
+- **Color:** Red
+- **Linetype:** Solid
+- **Linewidth:** 2
+- Both UCL and LCL drawn
+
+### Data Points
+- **Shape:** 19 (filled circle)
+- **Size:** 5
+- **Color:** Conditional based on sigma.signals
+  - Black (value 1) when within control limits
+  - Red (value 2) when outside control limits
+
+### Connecting Lines
+- Gray lines connecting all points
+- Shows data trend
+
+### Labels
+- **Title:** "Trended I-Chart"
+- **Subtitle:** "with Shewhart Rule #1 and Anhoej Run Rules"
+- **Caption:** "Data is synthetic"
+- **X-axis:** "Observation"
+- **Y-axis:** "Value"
+
+---
+
+## SYNTHETIC DATA CHARACTERISTICS
+
+### Data Generation
+- **Sample size:** n = 30
+- **Trend:** Linear with slope 0.5
+- **Intercept:** 10
+- **Noise:** Normal distribution (mean = 0, sd = 1)
+- **Formula:** y = 10 + 0.5x + ε, where ε ~ N(0, 1)
+
+### Random Seed
+- Set twice (lines 121, 129) to ensure reproducibility
+- Value: 123
+
+### Commented Perturbation (Line 137)
+- Code to add step change at observation 15 is commented out
+- If uncommented: `data$y[data$x > 15] <- data$y[data$x > 15] + 3`
+- Would demonstrate process shift detection
+
+---
+
+## BENEFITS OF THIS REFACTORING
+
+1. **Eliminates Library Loading**: No need to load dplyr or any other packages
+2. **Reduces Namespace Conflicts**: Explicit package references prevent function name collisions
+3. **Improves Code Clarity**: Clear indication of which package provides each function
+4. **Enhanced Maintainability**: Easy to identify package dependencies
+5. **Self-Documenting**: Package origins are explicit for all functions
+6. **Debugging Aid**: Easier to trace function origins when troubleshooting
+7. **Educational Value**: Clear demonstration of statistical control chart implementation
+
+---
+
+## PACKAGE DEPENDENCIES REQUIRED
+
+After refactoring, this script requires the following packages:
+
+**Essential Packages:**
+1. **base** (included with R, no installation needed)
+2. **stats** (included with R, no installation needed)
+3. **ggplot2** (must be installed)
+4. **grid** (included with R, no installation needed)
+5. **dplyr** (for select/filter assignments only, could be removed if not using these)
+
+**Removed Dependencies:**
+- No longer requires library(dplyr) to be called
+- No other package loading needed
+
+---
+
+## TESTING RECOMMENDATIONS
+
+1. **Verify Packages Installed:** Ensure ggplot2 is installed
+2. **Test Random Seed:** Verify reproducibility with set.seed(123)
+3. **Validate Linear Model:** Check model fit and residuals
+4. **Test Control Limits:** Verify UCL/LCL calculations
+5. **Validate Shewhart Rule #1:** Confirm points correctly flagged
+6. **Test Runs Analysis:** Verify run rules logic
+7. **Check Visualization:** Ensure chart renders correctly
+8. **Verify Conditional Styling:** 
+   - Centerline changes linetype when run rules violated
+   - Points change color when outside control limits
+9. **Test with Perturbation:** Uncomment line 137 to test step change detection
+
+---
+
+## CONTROL CHART INTERPRETATION
+
+### In-Control Process
+- All points within UCL and LCL (black points)
+- No excessive runs above or below centerline (solid blue centerline)
+- Approximately equal number of crossings of centerline
+
+### Out-of-Control Signals
+
+**Shewhart Rule #1 Violations (red points):**
+- Points outside UCL or LCL
+- Indicates special cause variation
+- Immediate investigation recommended
+
+**Anhoej Run Rule Violations (dashed centerline):**
+- Unusually long run above or below centerline
+- Unusually few crossings of centerline
+- Indicates systematic pattern or trend
+- May suggest process shift or drift
+
+---
+
+## STATISTICAL FORMULAS USED
+
+### Control Limits
+```
+Centerline = β₀ + β₁x (from linear regression)
+UCL = Centerline + 3(σ/1.128)
+LCL = Centerline - 3(σ/1.128)
+```
+where σ = standard deviation of residuals
+
+### Run Rules
+```
+Longest run max = round(log₂(n) + 3)
+Minimum crossings = qbinom(0.05, n-1, 0.5)
+```
+
+---
+
+## NOTES ON IMPLEMENTATION
+
+### Global Theme
+- Lines 98-117 set global ggplot2 theme
+- Applied to all subsequent ggplot2 charts
+- Includes consistent font sizes, angles, spacing
+
+### Commented Alternative Code (Lines 203-206)
+- Shows alternative approach using factor() and scale_color_manual()
+- Current implementation uses numeric conversion (sigma.signals + 1)
+- Both approaches produce same visual result
+
+### Conditional Aesthetics
+- Linetype based on runs.signal: `linetype = runs.signal + 1`
+  - FALSE (0) + 1 = 1 (solid)
+  - TRUE (1) + 1 = 2 (dashed)
+- Color based on sigma.signals: `col = sigma.signals + 1`
+  - FALSE (0) + 1 = 1 (black)
+  - TRUE (1) + 1 = 2 (red)
+
+---
+
+## EDUCATIONAL VALUE
+
+This refactored script demonstrates:
+
+1. **Statistical Process Control:** Implementation of I-chart with trend
+2. **Multiple Detection Rules:** Shewhart Rule #1 and Anhoej run rules
+3. **Linear Regression:** Trend adjustment in control charts
+4. **Conditional Visualization:** Dynamic styling based on rule violations
+5. **Reproducible Analysis:** Random seed setting for consistent results
+6. **Professional Coding:** Explicit namespacing for clarity and reliability
+
+Students and practitioners can:
+- Trace each statistical function to its source package
+- Understand control chart methodology
+- Learn conditional visualization techniques
+- See practical application of run rules
+- Modify for their own process monitoring needs
+
+---
+
+END OF SUMMARY
